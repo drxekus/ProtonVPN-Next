@@ -1,0 +1,79 @@
+# Чем этот форк отличается от оригинала
+
+Форк [SMH01-MOD-NEXT/ProtonVPN-Next](https://github.com/SMH01-MOD-NEXT/ProtonVPN-Next) (база — коммит `e4b08fa`, версия `12.0.0-alpha2st3-38`). Все изменения проверены на реальном телефоне (Realme RMX3357, Android 13, мобильная сеть в России) и покрыты юнит-тестами (174 теста проходят).
+
+[English version below](#english)
+
+## Стабильность соединения
+
+**Проблема:** приложение показывало «Подключено» с зелёным замком, хотя трафик не шёл; в фоне VPN сам отключался после короткого обрыва сети (смена вышки) и не поднимался, пока не откроешь приложение; иногда соединение «подвисало» на 15–25 секунд.
+
+- **«Самый быстрый» сервер выбирается только среди работающих.** Серверы на обслуживании не получают нагрузку от API Proton, она оставалась равной 0 — и именно они выбирались «самыми быстрыми». Новый общий `ServerSelector` берёт только серверы с онлайн-узлами и ключом WireGuard, серверы без данных о нагрузке ставит в конец, Secure Core и Tor — только если больше ничего нет. Одна логика для главного экрана, плитки, виджетов, автоподключения, стран, профилей и ротации IP (раньше — десять копий).
+- **Честный статус «Подключено».** Он появляется только после рукопожатия WireGuard (движок переключён на уровень логов `debug` — на `info` рукопожатия не видны) и, в режимах «Сбалансированный» и «Агрессивный», после настоящего HTTPS-запроса через новую VPN-сеть. Раньше при неудачной проверке приложение всё равно писало «Подключено», а монитор сети был зарегистрирован с `NOT_VPN` и VPN-сеть вообще не видел.
+- **Автоматический перебор.** Если сервер не отвечает, пробуются другие его узлы и порты, затем — для «самого быстрого», страны или города — следующий сервер в тех же пределах. Порт «Авто» начинает с последнего сработавшего, а не выбирается случайно.
+- **VPN-сервис больше не сдаётся:**
+  - при перезапуске системой и при старте через «Постоянный VPN» (Always-on) восстанавливает последний туннель из снимка на диске, вместо того чтобы сразу остановиться;
+  - при потере сети ждёт её и переподключается с нарастающей паузой (раньше — остановка, если не включён скрытый «kill switch», который можно было включить только через AI);
+  - повторные подключения сохраняют раздельное туннелирование;
+  - если рукопожатия нет 25 секунд — туннель перезапускается;
+  - если VPN-процесс убит (энергосбережение прошивки, сбой), основной процесс узнаёт об этом через привязку к сервису и поднимает туннель заново — вместо вечного ложного «Подключено»;
+  - VPN-процесс может разбудить приложение и попросить свежую конфигурацию (например, если сертификат истёк).
+- **Смена сети (вышки).** Движку сообщается только основная физическая сеть, как в официальном клиенте sing-box. Смена сети или IPv4-адреса на том же интерфейсе (`ccmni0` → новый адрес) теперь тоже считается сменой. Патч к amnezia-box (`scripts/patches/awgbox-awg-rebind.patch`): AWG-туннель при смене сети сразу пересоздаёт UDP-сокет и отправляет keepalive — в апстриме это делал только обычный WireGuard, поэтому соединение «висело», пока не сработают таймеры.
+- **Меньше фоновой нагрузки:** уведомление обновляется раз в 5 секунд, а не каждую секунду (прошивки считали это активностью в фоне).
+- **Мелочи:** повторное нажатие на сервер при неработающем туннеле больше не игнорируется; состояние «Подключение…» после ошибки сбрасывается; «Connect & Go» ждёт проверенного туннеля; прокси ByeDPI для обхода блокировки API запускается при старте приложения (раньше — только после открытия настроек); профили передают все параметры обфускации (S3/S4, I2–I5).
+
+## Приватность и безопасность
+
+- **Реальный IP больше не уходит на серверы автора мода.** Главный экран при каждом открытии узнавал реальный IP в обход VPN через развёртывания автора (Cloudflare, Deno, Vercel, «event»-хост) — во всех сборках, включая privacy. Теперь IP и страна берутся у самого Proton (`vpn/v1/location`), без обхода туннеля.
+- **Проверка TLS.** `MirrorTrustManager` принимал любую цепочку сертификатов, которую отвергла система, а большинство хостов не было закреплено пинами. Теперь принимается только то, чему доверяет Android, или сертификат, чей листовой ключ совпадает с опубликованными пинами Proton (альтернативная маршрутизация). `PinVerifier` проверяет только листовой сертификат — раньше подходил любой из цепочки.
+- **«Обход блокировки API».** Удалены стратегии Netlify, Cloudflare, Deno и «событие»: это прокси автора, через которые проходили логин, коды 2FA и токены сессии (TLS заканчивался на них). Сохранённый выбор автоматически переводится на зеркала Proton. Остались: зеркала Proton, свой SOCKS5/HTTP-прокси, ByeDPI.
+- Фоновая загрузка конфигурации «event bypass» с шести зеркал автора отключена во всех сборках.
+- `allowBackup=false`: токены сессии не попадают в облачную резервную копию Android.
+- **AI-ассистент удалён.** Он отправлял внешним AI-провайдерам список установленных приложений и настройки и мог менять настройки, в том числе kill switch и DNS. Сохранённые ключи `ai_*` удаляются при запуске.
+
+## Интерфейс
+
+- У каждого пункта настроек — кнопка ⓘ с описанием, что он делает на самом деле, когда его включать и что стоит по умолчанию (русский и английский).
+- Удалён переключатель «Ожидать завершения проверки»: проверка теперь всегда честная.
+- Исправлены ошибки в текстах: описание экрана загрузки серверов, подпись поля длительности паузы, подзаголовки Kill Switch и «Выйти», поле DNS обещало поддержку IPv6.
+
+## Сборка и диагностика
+
+- `scripts/build-awgbox-lib.sh` работает и на Windows (Git Bash), а ядро пересобирается автоматически при изменении набора патчей.
+- Рекомендуемый вариант — **stablePrivacy** (без Sentry и OTA): `./gradlew :app:assembleStablePrivacyDebug -PEXPECTED_SIGNATURE=<SHA-256 вашего ключа>`.
+- Отладочная сборка ведёт журнал событий VPN (смены сети, рукопожатия, восстановления; без IP-адресов): `adb shell run-as ru.protonmod.next.privacy cat files/vpn-events.log`.
+
+## Что осталось как в оригинале
+
+- Нативная библиотека анти-тампера (`libnext`) не тронута; для своей сборки передайте `-PEXPECTED_SIGNATURE`, иначе появится предупреждение о неофициальной сборке.
+- Стандартная (не privacy) сборка по-прежнему содержит Sentry и OTA-обновления от автора.
+- На прошивках с агрессивным энергосбережением (Realme/ColorOS, Xiaomi и др.) для работы в фоне нужно разрешить автозапуск, снять ограничения батареи и включить «Постоянный VPN» с блокировкой соединений без VPN.
+
+---
+
+<a name="english"></a>
+# How this fork differs from the original
+
+A fork of [SMH01-MOD-NEXT/ProtonVPN-Next](https://github.com/SMH01-MOD-NEXT/ProtonVPN-Next) at commit `e4b08fa`. Tested on a real phone (Realme RMX3357, Android 13, Russian mobile network); 174 unit tests pass.
+
+**Connection stability**
+- "Fastest" only picks servers that are online and have a WireGuard key. Servers under maintenance kept a load of 0 and used to win. One shared `ServerSelector` replaces ten copies of that logic.
+- "Connected" is shown only after a real WireGuard handshake and, in Balanced/Aggressive mode, an HTTPS round trip through the new VPN network. The old check reported success even when it failed, and its network monitor could not see VPN networks at all.
+- A silent server is replaced automatically: first its other nodes and ports, then the next server in the chosen scope (fastest, country or city). The "Auto" port starts from the last one that worked.
+- The VPN service restores the last tunnel on sticky restart and Always-on start. It waits for a network and retries with backoff instead of stopping, preserves split tunnelling on retries, and restarts a stalled tunnel after 25 s without a handshake. The app notices a killed VPN process through a service binding and brings the tunnel back.
+- On a network change, only the default physical network is published. A new network or address on the same interface also counts as a change. A patch to amnezia-box makes the AWG endpoint rebind its socket and send a keepalive immediately, which upstream did only for plain WireGuard.
+- The notification refreshes every 5 s instead of every second.
+
+**Privacy and security**
+- The real IP is no longer sent to the mod author's servers, and the socket no longer bypasses the VPN. Location now comes from Proton's own `vpn/v1/location` API.
+- TLS: any chain the system rejected used to be accepted. Now a chain passes only if the system trusts it or its leaf key matches one of Proton's pins.
+- The author-run API proxies (Netlify, Cloudflare, Deno and "event") are removed, because they saw login data and session tokens. The event-bypass background fetch is disabled.
+- `allowBackup=false`.
+- The AI assistant is removed, along with its stored keys.
+
+**UI**
+- Every setting has an ⓘ explanation in English and Russian. Several wrong labels are fixed.
+
+**Build and diagnostics**
+- The AWGBox script works on Windows and rebuilds the core when the set of patches changes.
+- Debug builds keep a VPN event log in `files/vpn-events.log`.

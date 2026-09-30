@@ -1,5 +1,17 @@
 # Proton VPN-Next 🛡️
 
+> [!NOTE]
+> **Это форк** [SMH01-MOD-NEXT/ProtonVPN-Next](https://github.com/SMH01-MOD-NEXT/ProtonVPN-Next) с исправлениями стабильности и приватности:
+> - честный статус «Подключено»: только после рукопожатия WireGuard и проверки трафика;
+> - «самый быстрый» сервер выбирается только среди работающих, неотвечающий сервер или порт меняется автоматически;
+> - VPN сам восстанавливается после обрыва сети и смены вышки, после убийства процесса и при старте через «Постоянный VPN»;
+> - реальный IP больше не уходит на серверы автора мода, исправлена проверка TLS, удалены прокси автора для API и AI-ассистент;
+> - у каждой настройки есть описание.
+>
+> Подробно: **[FORK_CHANGES.md](FORK_CHANGES.md)**.
+>
+> **This is a fork** with connection-stability and privacy fixes. See **[FORK_CHANGES.md](FORK_CHANGES.md#english)** for details. Everything below is the original README.
+
 [![Crowdin](https://badges.crowdin.net/protonvpn-next/localized.svg)](https://crowdin.com/project/protonvpn-next)
 
 [English](#english) | [Русский](#русский) | [Беларуская](#беларуская) | [فارسی](#فارسی) | [Қазақша](#қазақша) | [Українська](#українська) | [中文](#中文)
