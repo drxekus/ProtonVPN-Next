@@ -151,10 +151,19 @@ android {
             buildConfigField("String", "UPDATE_CHANNEL", "\"nightly\"")
         }
         
+        // In this fork no build talks to the original author's infrastructure: "standard" keeps
+        // its application ID but, like "privacy", has OTA updates (the author's update server)
+        // and Sentry (the author's project) switched off.
         create("standard") {
             dimension = "type"
             isDefault = true
-            buildConfigField("boolean", "IS_PRIVACY_BUILD", "false")
+            buildConfigField("boolean", "IS_PRIVACY_BUILD", "true")
+            buildConfigField("boolean", "SENTRY_ENABLED", "false")
+            externalNativeBuild {
+                cmake {
+                    cppFlags("-DPRIVACY_FLAVOR=1")
+                }
+            }
         }
 
         create("privacy") {

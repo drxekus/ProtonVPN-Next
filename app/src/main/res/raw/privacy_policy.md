@@ -1,83 +1,65 @@
-# Privacy Policy and Disclaimer | Политика конфиденциальности и отказ от ответственности
+# Политика конфиденциальности | Privacy Policy
 
-*Last updated: June 25, 2026*
-
-## English
-
-### 1. Introduction
-ProtonVPN-Next is an open-source, unofficial client for Proton VPN services. This document outlines how data is handled by the application. By using this application, you agree to the terms described herein.
-
-### 2. No Affiliation
-This project is **NOT** affiliated with, authorized, maintained, sponsored, or endorsed by Proton AG or any of its affiliates. This is an independent, community-driven project.
-
-### 3. Data Collection and Handling
-
-#### 3.1 Proton Services
-The application interacts directly with Proton's official APIs to provide VPN services. 
-- **Authentication**: Your credentials (username/password) are processed using the Secure Remote Password (SRP) protocol. The application does not store your password in plain text.
-- **VPN Traffic**: All your internet traffic is routed through Proton's servers. This application does not intercept, log, or monitor your VPN traffic. Please refer to [Proton's Privacy Policy](https://protonvpn.com/privacy-policy) for details on how they handle your data.
-
-#### 3.2 Analytics and Crash Reporting (Optional)
-The application uses **Sentry** for crash reporting and anonymous usage analytics to help improve the app.
-- This is **OPT-IN** and can be disabled at any time in the app settings (Settings -> Error Reporting).
-- Data collected may include device model, OS version, and stack traces when a crash occurs. No personally identifiable information (PII) is sent to Sentry.
-
-#### 3.3 Local Storage
-The application stores certain data locally on your device:
-- Encrypted session tokens and cryptographic keys.
-- Server list cache.
-- User settings and preferences.
-This data remains on your device and is not uploaded to any third-party servers other than Proton's APIs during normal operation.
-
-#### 3.4 API Block Bypass (Optional)
-To ensure accessibility in regions where Proton's official APIs are restricted, the application offers several API Bypass strategies.
-- **Proxies (Netlify, Cloudflare, Deno, Custom)**: If enabled, your API requests (containing authentication and server list queries) may be routed through third-party infrastructure. While authentication is encrypted (SRP), these proxies will see your IP address and the fact that you are accessing Proton services.
-- **ByeDPI (DPI Deception)**: Uses advanced packet fragmentation and deception techniques locally on your device. Since this is a local SOCKS5 proxy, your traffic does not pass through any third-party proxy servers, and your IP address is not shared with any external proxy provider. All data is processed locally before reaching Proton's APIs.
-These features are **OPTIONAL** and can be configured in the app settings (Settings -> API Block Bypass).
-
-### 4. Mandatory Acceptance
-By using this application, you acknowledge that you have read and accepted this Privacy Policy. Access to the application is conditional upon this acceptance.
-
-### 5. Disclaimer of Warranty
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
----
+*Редакция форка drxekus/ProtonVPN-Next, 30.09.2026*
 
 ## Русский
 
-### 1. Введение
-ProtonVPN-Next — это неофициальный клиент с открытым исходным кодом для сервисов Proton VPN. В этом документе описывается, как приложение обрабатывает данные. Используя это приложение, вы соглашаетесь с условиями, описанными здесь.
+### 1. Кто мы
+Proton VPN-Next — неофициальный клиент Proton VPN с открытым исходным кодом. Это форк, и он **не связан** ни с Proton AG, ни с автором оригинального мода. У форка нет серверов, аналитики и системы обновлений: разработчики форка не получают от приложения никаких данных.
 
-### 2. Отсутствие аффилированности
-Этот проект **НЕ** связан, не авторизован, не поддерживается и не одобряется компанией Proton AG или её филиалами. Это независимый проект сообщества.
+### 2. Куда приложение обращается
 
-### 3. Сбор и обработка данных
+| Куда | Что передаётся | Когда |
+|---|---|---|
+| API Proton (`vpn-api.proton.me` и др.) | вход по протоколу SRP (сам пароль не передаётся), токены сессии, запросы списка серверов, нагрузки и сертификата, определение местоположения | всегда: без этого VPN не работает. Proton видит ваш IP, как и с официальным клиентом |
+| Серверы VPN Proton | зашифрованный туннель WireGuard / AmneziaWG | при подключении |
+| Провайдеры зашифрованного DNS (Cloudflare, Google, Quad9, Mullvad, dns0 или выбранный вами) | имена хостов Proton, которые приложение ищет для **своих** запросов | вне VPN; ваш трафик через туннель сюда не идёт |
+| `api.protonvpn.ch`, `connectivitycheck.gstatic.com` | проверочный HTTPS-запрос **через туннель** (видят только IP VPN) | после подключения, в режимах проверки «Сбалансированный» и «Агрессивный» |
+| `1.1.1.1`, `8.8.8.8` (порт 443) | только установка TCP-соединения, без данных | предварительная проверка сети перед подключением |
+| Зеркала Proton через DNS (1.1.1.1, 8.8.8.8) | запросы альтернативной маршрутизации Proton, как в официальном клиенте | только при «Обходе блокировки API» со стратегией «Зеркала Proton» |
+| Ваш прокси | зашифрованный трафик к API Proton | только со стратегией «Свой прокси» |
+| Источники списков блокировки NetShield | загрузка публичных списков | только при включённом NetShield |
+| Сеть Tor | трафик через Tor | только в режиме Tor |
 
-#### 3.1 Сервисы Proton
-Приложение напрямую взаимодействует с официальными API Proton для предоставления услуг VPN.
-- **Аутентификация**: Ваши учетные данные (имя пользователя/пароль) обрабатываются по протоколу Secure Remote Password (SRP). Приложение не хранит ваш пароль в открытом виде.
-- **VPN-трафик**: Весь ваш интернет-трафик направляется через серверы Proton. Данное приложение не перехватывает, не регистрирует и не отслеживает ваш VPN-трафик. Пожалуйста, ознакомьтесь с [Политикой конфиденциальности Proton](https://protonvpn.com/privacy-policy) для получения подробной информации о том, как они обрабатывают ваши данные.
+### 3. Чего приложение не делает
+- Не отправляет отчёты о сбоях, аналитику и телеметрию (Sentry отключён во всех сборках форка).
+- Не проверяет и не скачивает обновления.
+- Не обращается к серверам автора оригинального мода и к любым серверам форка.
+- Не видит и не записывает содержимое вашего VPN-трафика.
 
-#### 3.2 Аналитика и отчеты об ошибках (Опционально)
-Приложение использует **Sentry** для отчетов о сбоях и анонимной аналитики использования, чтобы помочь улучшить приложение.
-- Это работает по принципу **ДОБРОВОЛЬНОГО СОГЛАСИЯ** и может быть отключено в любое время в настройках приложения (Настройки -> Отчеты об ошибках).
-- Собираемые данные могут включать модель устройства, версию ОС и трассировку стека при возникновении сбоя. Личная информация (PII) в Sentry не отправляется.
-
-#### 3.3 Локальное хранилище
-Приложение сохраняет определенные данные локально на вашем устройстве:
-- Зашифрованные токены сессий и криптографические ключи.
-- Кэш списка серверов.
-- Пользовательские настройки и предпочтения.
-Эти данные остаются на вашем устройстве и не передаются на сторонние серверы, кроме API Proton в процессе обычной работы.
-
-#### 3.4 Обход блокировок API (Опционально)
-Для обеспечения доступности в регионах, где официальные API Proton ограничены, приложение предлагает несколько стратегий обхода блокировок.
-- **Прокси (Netlify, Cloudflare, Deno, Пользовательские)**: Если эта функция включена, ваши запросы к API (содержащие данные аутентификации и запросы списка серверов) могут направляться через стороннюю инфраструктуру. Хотя аутентификация зашифрована (SRP), эти прокси будут видеть ваш IP-адрес и факт обращения к сервисам Proton.
-- **ByeDPI (Обман DPI)**: Использует продвинутую фрагментацию пакетов и методы обмана цензора локально на вашем устройстве. Поскольку это локальный SOCKS5 прокси, ваш трафик не проходит через сторонние прокси-серверы, и ваш IP-адрес не передается внешним провайдерам прокси. Все данные обрабатываются локально перед отправкой к API Proton.
-Эти функции являются **ОПЦИОНАЛЬНЫМИ** и могут быть настроены в настройках приложения (Настройки -> Обход блокировок API).
-
-### 4. Обязательное принятие
-Используя это приложение, вы подтверждаете, что прочитали и приняли настоящую Политику конфиденциальности. Доступ к приложению возможен только при условии этого принятия.
+### 4. Что хранится на устройстве
+Токены сессии, ключи WireGuard, кэш серверов, настройки, статистика трафика (если включена). Всё лежит во внутреннем хранилище приложения и не попадает в облачную резервную копию Android. Экспорт настроек через «Резервное копирование» делаете только вы; данные входа туда не попадают. Отладочные сборки дополнительно ведут локальный журнал событий VPN без IP-адресов.
 
 ### 5. Отказ от ответственности
-ПРОГРАММНОЕ ОБЕСПЕЧЕНИЕ ПРЕДОСТАВЛЯЕТСЯ «КАК ЕСТЬ», БЕЗ КАКИХ-ЛИБО ГАРАНТИЙ, ЯВНЫХ ИЛИ ПОДРАЗУМЕВАЕМЫХ. НИ ПРИ КАКИХ ОБСТОЯТЕЛЬСТВАХ АВТОРЫ ИЛИ ПРАВООБЛАДАТЕЛИ НЕ НЕСУТ ОТВЕТСТВЕННОСТИ ПО КАКИМ-ЛИБО ИСКАМ, ЗА УЩЕРБ ИЛИ ПО ИНЫМ ОБЯЗАТЕЛЬСТВАМ, ВОЗНИКШИМ В РЕЗУЛЬТАТЕ ИСПОЛЬЗОВАНИЯ ПРОГРАММНОГО ОБЕСПЕЧЕНИЯ.
+Программа распространяется по лицензии GPL-3.0 «как есть», без каких-либо гарантий. Вы используете её на свой риск и сами отвечаете за соблюдение законов своей страны.
+
+---
+
+## English
+
+### 1. Who we are
+Proton VPN-Next is an unofficial, open-source Proton VPN client. This is a fork that is **not affiliated** with Proton AG or with the original mod's author. The fork has no servers, analytics or update system: its maintainers receive no data from the app.
+
+### 2. What the app connects to
+- **Proton API** (`vpn-api.proton.me` etc.): login via SRP (the password itself is never sent), session tokens, server list, loads, certificate and location requests. Proton sees your IP, as with the official client.
+- **Proton VPN servers:** the encrypted WireGuard / AmneziaWG tunnel.
+- **Encrypted DNS providers** (Cloudflare, Google, Quad9, Mullvad, dns0, or the one you choose): the Proton hostnames the app resolves for its own requests. Your tunnel traffic never goes here.
+- **`api.protonvpn.ch`, `connectivitycheck.gstatic.com`:** one HTTPS check **through the tunnel** after connecting, in Balanced and Aggressive verification modes. These services only see the VPN IP.
+- **`1.1.1.1`, `8.8.8.8` port 443:** a TCP connect with no data, as a network pre-check.
+- **Only when you enable them:**
+  - Proton mirrors via DNS (API bypass);
+  - your own proxy;
+  - NetShield block-list sources;
+  - Tor.
+
+### 3. What the app does not do
+- No crash reports, analytics or telemetry: Sentry is disabled in every build of this fork.
+- No update checks or downloads.
+- No requests to the original author's servers or to any server run by this fork.
+- No access to, or logging of, your VPN traffic.
+
+### 4. What is stored on the device
+Session tokens, WireGuard keys, server cache, settings and optional traffic statistics are kept in the app's private storage and are excluded from Android cloud backup. Debug builds also keep a local VPN event log without IP addresses.
+
+### 5. Disclaimer
+Distributed under GPL-3.0 "as is", without any warranty. You use it at your own risk and are responsible for complying with local laws.

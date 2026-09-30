@@ -866,11 +866,11 @@ bool AntiTamper::check(JNIEnv* env, jobject context) {
 }
 
 std::string AntiTamper::getProtectedString(const std::string& locale, const std::string& key) {
-    if (key == XOR_STR("url_github")) return XOR_STR("https://github.com/SMH01-MOD-NEXT/ProtonVPN-Next");
-    if (key == XOR_STR("url_gitlab")) return XOR_STR("https://gitlab.com/vpn-next-group/proton-vpn-next");
-    if (key == XOR_STR("url_telegram")) return XOR_STR("https://t.me/ProtonVPN_MOD");
-    if (key == XOR_STR("url_website")) return XOR_STR("https://home.protonnext.qzz.io/");
-    if (key == XOR_STR("url_crowdin")) return XOR_STR("https://crowdin.com/project/protonvpn-next");
+    if (key == XOR_STR("url_github")) return XOR_STR("https://github.com/drxekus/ProtonVPN-Next");
+    if (key == XOR_STR("url_gitlab")) return XOR_STR("https://github.com/drxekus/ProtonVPN-Next");
+    if (key == XOR_STR("url_telegram")) return XOR_STR("https://github.com/drxekus/ProtonVPN-Next/issues");
+    if (key == XOR_STR("url_website")) return XOR_STR("https://github.com/drxekus/ProtonVPN-Next");
+    if (key == XOR_STR("url_crowdin")) return XOR_STR("https://github.com/drxekus/ProtonVPN-Next");
     if (key == XOR_STR("app_name")) return XOR_STR("Proton VPN-Next");
 
     auto l = locale;
@@ -950,7 +950,7 @@ std::string AntiTamper::getProtectedString(const std::string& locale, const std:
         return XOR_STR("EXIT");
     }
 
-    if (key == XOR_STR("url_tamper_help")) return XOR_STR("https://t.me/ProtonVPN_MOD");
+    if (key == XOR_STR("url_tamper_help")) return XOR_STR("https://github.com/drxekus/ProtonVPN-Next/issues");
 
     return "";
 }
@@ -1089,9 +1089,9 @@ void AntiTamper::verifyCriticalIntegrity(JNIEnv* env) {
     };
 
     std::vector<StringVerify> criticalStrings = {
-        {XOR_STR("url_github"), XOR_STR("https://github.com/SMH01-MOD-NEXT/ProtonVPN-Next")},
-        {XOR_STR("url_gitlab"), XOR_STR("https://gitlab.com/vpn-next-group/proton-vpn-next")},
-        {XOR_STR("url_telegram"), XOR_STR("https://t.me/ProtonVPN_MOD")}
+        {XOR_STR("url_github"), XOR_STR("https://github.com/drxekus/ProtonVPN-Next")},
+        {XOR_STR("url_gitlab"), XOR_STR("https://github.com/drxekus/ProtonVPN-Next")},
+        {XOR_STR("url_telegram"), XOR_STR("https://github.com/drxekus/ProtonVPN-Next/issues")}
     };
 
     for (const auto& sv : criticalStrings) {

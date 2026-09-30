@@ -59,9 +59,6 @@ fun AboutAppScreen(
     val colors = ProtonNextTheme.colors
     val context = LocalContext.current
     val githubUrl = stringResource(R.string.url_github)
-    val gitlabUrl = stringResource(R.string.url_gitlab)
-    val telegramUrl = stringResource(R.string.url_telegram)
-    val crowdinUrl = stringResource(R.string.url_crowdin)
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -177,51 +174,6 @@ fun AboutAppScreen(
                                 iconResId = R.drawable.ic_github,
                                 onClick = {
                                     val intent = Intent(Intent.ACTION_VIEW, githubUrl.toUri())
-                                    context.startActivity(intent)
-                                },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                            )
-
-                            AboutLinkCard(
-                                title = stringResource(id = R.string.about_gitlab),
-                                iconResId = R.drawable.ic_gitlab,
-                                onClick = {
-                                    val intent = Intent(Intent.ACTION_VIEW, gitlabUrl.toUri())
-                                    context.startActivity(intent)
-                                },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(IntrinsicSize.Max),
-                            horizontalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            AboutLinkCard(
-                                title = stringResource(id = R.string.about_telegram),
-                                iconResId = R.drawable.ic_telegram,
-                                onClick = {
-                                    val intent = Intent(Intent.ACTION_VIEW, telegramUrl.toUri())
-                                    context.startActivity(intent)
-                                },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                            )
-
-                            AboutLinkCard(
-                                title = stringResource(id = R.string.about_crowdin),
-                                iconResId = R.drawable.ic_crowdin,
-                                onClick = {
-                                    val intent = Intent(Intent.ACTION_VIEW, crowdinUrl.toUri())
                                     context.startActivity(intent)
                                 },
                                 modifier = Modifier
