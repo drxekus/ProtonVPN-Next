@@ -1,6 +1,6 @@
 # Чем этот форк отличается от оригинала
 
-Форк [SMH01-MOD-NEXT/ProtonVPN-Next](https://github.com/SMH01-MOD-NEXT/ProtonVPN-Next) (база — коммит `e4b08fa`, версия `12.0.0-alpha2st3-38`). Все изменения проверены на реальном телефоне (Realme RMX3357, Android 13, мобильная сеть в России) и покрыты юнит-тестами (174 теста проходят).
+Форк проекта ProtonVPN-Next (база — коммит `e4b08fa`, версия `12.0.0-alpha2st3-38`). Все изменения проверены на реальном телефоне (Realme RMX3357, Android 13, мобильная сеть в России) и покрыты юнит-тестами (174 теста проходят).
 
 [English version below](#english)
 
@@ -29,6 +29,7 @@
 - **«Обход блокировки API».** Удалены стратегии Netlify, Cloudflare, Deno и «событие»: это прокси автора, через которые проходили логин, коды 2FA и токены сессии (TLS заканчивался на них). Сохранённый выбор автоматически переводится на зеркала Proton. Остались: зеркала Proton, свой SOCKS5/HTTP-прокси, ByeDPI.
 - Фоновая загрузка конфигурации «event bypass» с шести зеркал автора отключена во всех сборках.
 - `allowBackup=false`: токены сессии не попадают в облачную резервную копию Android.
+- **Ни одна сборка форка не обращается к инфраструктуре автора оригинала.** У варианта `standard` выключены OTA-обновления (сервер автора, APK без проверки хэша) и Sentry (проект автора) — так же, как у `privacy`. Ссылки в приложении («О приложении», окно анти-тампера) ведут на этот форк, а не на Telegram, GitLab и сайт автора. Политика конфиденциальности в приложении заменена описанием того, что приложение делает на самом деле.
 - **AI-ассистент удалён.** Он отправлял внешним AI-провайдерам список установленных приложений и настройки и мог менять настройки, в том числе kill switch и DNS. Сохранённые ключи `ai_*` удаляются при запуске.
 
 ## Интерфейс
@@ -45,8 +46,8 @@
 
 ## Что осталось как в оригинале
 
-- Нативная библиотека анти-тампера (`libnext`) не тронута; для своей сборки передайте `-PEXPECTED_SIGNATURE`, иначе появится предупреждение о неофициальной сборке.
-- Стандартная (не privacy) сборка по-прежнему содержит Sentry и OTA-обновления от автора.
+- Нативная библиотека анти-тампера (`libnext`) работает как раньше, изменены только её ссылки. Для своей сборки передайте `-PEXPECTED_SIGNATURE`, иначе появится предупреждение о неофициальной сборке.
+- Мёртвый код оригинала (адреса прокси автора, источники «event»-конфига и OTA) частично остался в исходниках, но нигде не вызывается.
 - На прошивках с агрессивным энергосбережением (Realme/ColorOS, Xiaomi и др.) для работы в фоне нужно разрешить автозапуск, снять ограничения батареи и включить «Постоянный VPN» с блокировкой соединений без VPN.
 
 ---
@@ -54,7 +55,7 @@
 <a name="english"></a>
 # How this fork differs from the original
 
-A fork of [SMH01-MOD-NEXT/ProtonVPN-Next](https://github.com/SMH01-MOD-NEXT/ProtonVPN-Next) at commit `e4b08fa`. Tested on a real phone (Realme RMX3357, Android 13, Russian mobile network); 174 unit tests pass.
+A fork of ProtonVPN-Next at commit `e4b08fa`. Tested on a real phone (Realme RMX3357, Android 13, Russian mobile network); 174 unit tests pass.
 
 **Connection stability**
 - "Fastest" only picks servers that are online and have a WireGuard key. Servers under maintenance kept a load of 0 and used to win. One shared `ServerSelector` replaces ten copies of that logic.
@@ -69,6 +70,7 @@ A fork of [SMH01-MOD-NEXT/ProtonVPN-Next](https://github.com/SMH01-MOD-NEXT/Prot
 - TLS: any chain the system rejected used to be accepted. Now a chain passes only if the system trusts it or its leaf key matches one of Proton's pins.
 - The author-run API proxies (Netlify, Cloudflare, Deno and "event") are removed, because they saw login data and session tokens. The event-bypass background fetch is disabled.
 - `allowBackup=false`.
+- No build of this fork contacts the original author's infrastructure: `standard` also has OTA and Sentry disabled; in-app links point to this fork; the in-app privacy policy describes what the app really does.
 - The AI assistant is removed, along with its stored keys.
 
 **UI**

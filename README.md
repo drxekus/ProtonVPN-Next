@@ -1,246 +1,180 @@
-# Proton VPN-Next 🛡️
+# Proton VPN-Next — форк со стабильным соединением и без утечек
 
-> [!NOTE]
-> **Это форк** [SMH01-MOD-NEXT/ProtonVPN-Next](https://github.com/SMH01-MOD-NEXT/ProtonVPN-Next) с исправлениями стабильности и приватности:
-> - честный статус «Подключено»: только после рукопожатия WireGuard и проверки трафика;
-> - «самый быстрый» сервер выбирается только среди работающих, неотвечающий сервер или порт меняется автоматически;
-> - VPN сам восстанавливается после обрыва сети и смены вышки, после убийства процесса и при старте через «Постоянный VPN»;
-> - реальный IP больше не уходит на серверы автора мода, исправлена проверка TLS, удалены прокси автора для API и AI-ассистент;
-> - у каждой настройки есть описание.
->
-> Подробно: **[FORK_CHANGES.md](FORK_CHANGES.md)**.
->
-> **This is a fork** with connection-stability and privacy fixes. See **[FORK_CHANGES.md](FORK_CHANGES.md#english)** for details. Everything below is the original README.
+Неофициальный Android-клиент Proton VPN на ядре AmneziaWG (sing-box / amnezia-box) с обфускацией трафика и обходом блокировок.
 
-[![Crowdin](https://badges.crowdin.net/protonvpn-next/localized.svg)](https://crowdin.com/project/protonvpn-next)
+Это **независимый форк**. Он исправляет обрывы и «ложные подключения» оригинала и убирает все обращения приложения к инфраструктуре автора оригинального мода.
 
-[English](#english) | [Русский](#русский) | [Беларуская](#беларуская) | [فارسی](#فارسی) | [Қазақша](#қазақша) | [Українська](#українська) | [中文](#中文)
+> [!WARNING]
+> Проект **не связан** ни с Proton AG, ни с автором оригинального мода. Используйте на свой риск. Для поддержки сервиса рекомендуем платную подписку Proton VPN.
+
+[English](#english)
 
 ---
 
-## English
+## Зачем нужен этот форк
 
-> [!IMPORTANT]
-> **PROJECT TRANSFER NOTICE**
-> This project is moving from Codeberg to **GitLab**.
-> **New Repository:** [https://gitlab.com/vpn-next-group/proton-vpn-next](https://gitlab.com/vpn-next-group/proton-vpn-next)
-> **Reason:** Disagreement with Codeberg's new restrictive policies regarding AI-generated and AI-maintained projects. As this project is heavily AI-driven, GitLab provides a more suitable environment.
+При разборе оригинального приложения нашлось три группы проблем:
 
-**Proton VPN-Next** is a modern, high-performance **unofficial** Android client for Proton VPN. Built with a focus on privacy, speed, and a sleek Material 3 interface, it uses an AWGBox core built from wireguard-go with advanced features for circumventing network restrictions.
+1. **Ложный статус «Подключено».** Приложение показывало зелёный замок, хотя трафик через туннель не шёл.
+2. **VPN не восстанавливался сам.** После короткого обрыва сети (смена вышки) или после того, как система выгрузила процесс, VPN отключался и не поднимался, пока не откроешь приложение.
+3. **Данные уходили на серверы автора мода**, включая ваш реальный IP в обход VPN.
 
-### ⚠️ IMPORTANT DISCLAIMER
-- **UNOFFICIAL CLIENT:** This application is **NOT** an official product of Proton AG.
-- **USE AT YOUR OWN RISK:** This software is provided "as is". The developer assumes **no responsibility** for your accounts or data.
-- **SUPPORT PROTON:** We highly recommend subscribing to an official **Proton VPN paid plan** to support the original creators.
+Все три исправлены. Изменения проверены на реальном телефоне (Realme, Android 13, мобильная сеть в России), 174 юнит-теста проходят.
 
-### 🚨 Security Warning: Fakes & Counterfeits
-> **Warning:** Counterfeit versions of this app are dangerous. See the **[Wall of Shame](WALL_OF_SHAME.md)** for a list of known malicious distribution channels.
+| | Оригинал | Этот форк |
+|---|---|---|
+| Статус «Подключено» | сразу после запуска движка, даже если сервер не отвечает | только после рукопожатия WireGuard и реального HTTPS-запроса через туннель |
+| «Самый быстрый» сервер | часто выбирал выключенный сервер (нагрузка 0) | только работающие серверы; неотвечающий сервер или порт меняется автоматически |
+| Обрыв сети, смена вышки | VPN останавливался | ждёт сеть и переподключается; сокет туннеля пересоздаётся сразу |
+| Процесс VPN убит системой | вечное ложное «Подключено» | приложение замечает это и поднимает туннель заново |
+| «Постоянный VPN» Android | сервис сразу останавливался сам | восстанавливает последний туннель |
+| Реальный IP | уходил на серверы автора в обход VPN | запрашивается только у Proton |
+| Проверка TLS | принималась любая цепочка, отвергнутая системой | как в системе, плюс опубликованные пины Proton |
+| Прокси автора для API Proton | Netlify, Cloudflare, Deno, «событие» | удалены |
+| Sentry, OTA-обновления | включены в стандартной сборке | выключены во всех сборках |
+| AI-ассистент | отправлял список приложений внешним AI | удалён |
+| Описания настроек | одна строка | у каждой настройки кнопка ⓘ с подробным объяснением |
 
-**Official Application IDs:**
-- 🟢 **Stable:** `ru.protonmod.next`
-- 🟡 **Nightly:** `ru.protonmod.next.nightly`
-- 🔐 **Privacy:** `ru.protonmod.next.privacy` (No telemetry/Sentry, no OTA)
-
-**Official Sources:**
-- ✅ [GitHub Mirror](https://github.com/SMH01-MOD-NEXT/ProtonVPN-Next)
-- ✅ [GitLab Repo](https://gitlab.com/vpn-next-group/proton-vpn-next)
-- ✅ [Telegram Channel](https://t.me/ProtonVPN_MOD)
-
-### 📱 System Requirements
-| Requirement | Specification |
-| :--- | :--- |
-| **OS** | Android 10+ (API 29+) |
-| **Architecture** | **ARM64-v8a ONLY** |
-| **Support** | ⚠️ x86_64 and 32-bit (ARMv7) are **NOT supported** |
-
-### ✨ Key Features
-- **🚀 ByeDPI Integration:** Advanced strategies to circumvent Deep Packet Inspection (DPI).
-- **🌐 API Bypass Suite:** Access Proton API via SOCKS5, Deno proxy, or Remote DNS fallback.
-- **🔐 Privacy Flavor:** Zero telemetry (no Sentry) and no OTA updates.
-- **📦 Backup & Restore:** Easily export and import your sessions and app configuration.
-- **🎨 Modern UI:** Fully built with Jetpack Compose and Material 3 (Setup Wizard, Dynamic Colors).
-- **🛡️ Kill Switch:** Robust protection against traffic leaks.
-- **⚙️ Split Tunneling:** Exclude specific apps (including system apps) from the VPN tunnel.
-
-### 🛠 Development
-Detailed build instructions for both Terminal and Android Studio are available in **[BUILD_INSTRUCTIONS.md](BUILD_INSTRUCTIONS.md)**.
-
-### Powered by Netlify
-
-[![Deployed to Netlify](https://www.netlify.com/img/global/badges/netlify-color-bg.svg)](https://shimmering-stroopwafel-51675e.netlify.app)
-
-This site is [deployed to Netlify](https://www.netlify.com).
+Полный список изменений — в [FORK_CHANGES.md](FORK_CHANGES.md).
 
 ---
 
-## Русский
+## Анализ безопасности оригинального приложения
 
-> [!IMPORTANT]
-> **УВЕДОМЛЕНИЕ О ПЕРЕЕЗДЕ**
-> Проект переезжает с Codeberg на **GitLab**.
-> **Новый репозиторий:** [https://gitlab.com/vpn-next-group/proton-vpn-next](https://gitlab.com/vpn-next-group/proton-vpn-next)
-> **Причина:** Несогласие с новой политикой Codeberg в отношении проектов, созданных и поддерживаемых с помощью ИИ. Поскольку этот проект интенсивно использует ИИ, GitLab предоставляет более подходящую среду.
+Ниже то, что показывает исходный код оригинала на момент форка (коммит `e4b08fa`). Это описание того, что код **делал и позволял**, а не доказательство злого умысла.
 
-**Proton VPN-Next** — это современный высокопроизводительный **неофициальный** Android-клиент для Proton VPN. Создан с упором на приватность, скорость и стильный интерфейс Material 3, использует ядро AWGBox, созданное из wireguard-go с передовыми функциями для обхода сетевых ограничений.
+### Что уходило на серверы автора
 
-### ⚠️ ВАЖНЫЙ ОТКАЗ ОТ ОТВЕТСТВЕННОСТИ
-- **НЕОФИЦИАЛЬНЫЙ КЛИЕНТ:** Приложение **НЕ ЯВЛЯЕТСЯ** официальным продуктом Proton AG.
-- **ИСПОЛЬЗУЙТЕ НА СВОЙ СТРАХ И РИСК:** Разработчик **не несет ответственности** за ваши аккаунты или данные.
+- **Ваш реальный IP.** Главный экран при каждом запуске и после каждого отключения спрашивал «какой у меня IP» у развёртываний автора (Cloudflare Workers, Deno, Vercel, адрес из удалённого «event»-конфига). Сокет при этом был привязан к мобильной сети или Wi-Fi, то есть **в обход VPN**. Через несколько секунд после подключения тот же запрос шёл уже через туннель. Автор получал пару «реальный IP + IP выхода VPN» и мог связать их. Так было во всех сборках, включая privacy, и отключить это было нельзя.
+- **Вход в аккаунт — если был включён «Обход блокировки API» со стратегией Netlify, Cloudflare, Deno или «событие».** При включении обхода по умолчанию выбиралась Netlify. Все запросы к API Proton шли через прокси автора, и TLS расшифровывался на их стороне. Через них проходили:
+  - логин и данные входа по SRP. Сам пароль по SRP не передаётся, но перехваченного обмена достаточно, чтобы **перебирать пароль офлайн**. Сложный пароль это не пробьёт, слабый — может;
+  - коды двухфакторной аутентификации;
+  - **токены сессии (access и refresh)** — полноценный вход в аккаунт в пределах прав сессии. Refresh-токен продлевает сессию, пока её не отзовут;
+  - хэш `ANDROID_ID` устройства.
 
-### 🚨 Безопасность: Фейки и подделки
-> **Внимание:** Поддельные версии приложения опасны. Список вредоносных каналов доступен на **[Доске позора](WALL_OF_SHAME.md)**.
+  Опубликованная в репозитории конфигурация Netlify (`netlify.toml`) — простая пересылка на `vpn-api.proton.me` без логирования. Но что было развёрнуто на самом деле, проверить нельзя: прокси Cloudflare и Deno — это исполняемый код, а адрес для стратегии «событие» приложение получало удалённо и могло менять без обновления. Технически перехват был возможен в любой момент; доказательств, что он происходил, в коде нет.
+- **Sentry** (стандартная сборка): модель устройства, версия Android, язык, ID установки, ошибки с шагами подключения и ID серверов. Отчёты о сбоях были включены по умолчанию, хотя политика конфиденциальности оригинала называла их добровольными.
+- **Анти-тампер** сообщал в Sentry о наличии определённых приложений (инструментов модификации), подписи APK и содержимом `/proc/self/maps`.
+- **OTA-обновления** (стандартная сборка): проверка при каждом запуске (IP и модель телефона в User-Agent). APK скачивался по ссылке из ответа сервера **без проверки хэша**. Обновление могло содержать любой код.
+- **Удалённый «event»-конфиг**: ежедневная загрузка с шести зеркал автора (IP и User-Agent), даже если обход API выключен.
 
-**Официальные Package Name:**
-- 🟢 **Stable:** `ru.protonmod.next`
-- 🟡 **Nightly:** `ru.protonmod.next.nightly`
-- 🔐 **Privacy:** `ru.protonmod.next.privacy` (Без телеметрии/Sentry, без OTA)
+### Уязвимость, не связанная с автором
 
-**Официальные источники:**
-- ✅ [Зеркало GitHub](https://github.com/SMH01-MOD-NEXT/ProtonVPN-Next)
-- ✅ [Репозиторий GitLab](https://gitlab.com/vpn-next-group/proton-vpn-next)
-- ✅ [Telegram-канал](https://t.me/ProtonVPN_MOD)
+`MirrorTrustManager` принимал **любую** цепочку сертификатов, которую отвергла система, а пинами были закреплены лишь некоторые хосты. Перехватить такие соединения мог кто угодно на пути: публичный Wi-Fi, провайдер, корпоративный прокси. В форке исправлено.
 
-### 📱 Системные требования
-- **ОС:** Android 10+
-- **Архитектура:** **Только ARM64-v8a**
-- **Внимание:** ⚠️ Поддержка x86_64 и 32-битных систем (ARMv7) **прекращена**.
+### Чего в коде не было
 
-### ✨ Основные возможности
-- **🚀 ByeDPI:** Встроенные инструменты для обхода систем глубокого анализа трафика (DPI).
-- **🌐 API Bypass:** Доступ к API через SOCKS5, Deno-прокси или Remote DNS.
-- **🔐 Privacy Flavor:** Сборка без телеметрии (Sentry) и без OTA-обновлений.
-- **📦 Бэкап и восстановление:** Экспорт и импорт сессий и настроек приложения.
-- **🎨 Material 3:** Современный интерфейс на Jetpack Compose (Мастер настройки, Динамические цвета).
+- **Использования телефона как прокси или узла сети.** Входящих подключений извне нет: локальный прокси ByeDPI слушает только `127.0.0.1`, конфигурация движка собирается на устройстве, внешнего API управления нет. Нативная библиотека делает HTTP-запросы только к `vpn-api.proton.me`.
+- **Доступа к содержимому VPN-трафика.** Он зашифрован до серверов Proton, приватный ключ WireGuard не покидает телефон.
 
-### 🛠 Сборка
-Подробные инструкции по сборке через терминал и Android Studio доступны в файле **[BUILD_INSTRUCTIONS.md](BUILD_INSTRUCTIONS.md)**.
+Оговорка: канал OTA позволял автору в любой момент выпустить версию с другим поведением.
+
+### Что было возможно при перехвате токенов
+
+С токеном сессии можно действовать в аккаунте Proton от вашего имени в пределах прав сессии. Например, регистрировать собственные ключи WireGuard и пользоваться вашей подпиской VPN с чужих устройств (в пределах лимита устройств тарифа). Это возможность, а не установленный факт. Проверить можно только по списку сессий в вашем аккаунте.
+
+### Если вы пользовались оригиналом
+
+1. **Отзовите сессии:** [account.proton.me](https://account.proton.me) → Настройки → Безопасность → «Сессии». Завершите все незнакомые и лишние. Особенно это важно, если был включён обход API через Netlify, Cloudflare, Deno или «событие».
+2. **Смените пароль Proton**, если он простой или используется где-то ещё, и **включите 2FA**.
+3. **Удалите оригинальное приложение.** Иначе через него может прийти OTA-обновление, и оно продолжит отправлять ваш IP при запуске.
 
 ---
 
-## Беларуская
+## Установка
 
-> [!IMPORTANT]
-> **АПАВЯШЧЭННЕ А ПЕРАЕЗДЗЕ**
-> Праект пераязджае з Codeberg на **GitLab**.
-> **Новы рэпазіторый:** [https://gitlab.com/vpn-next-group/proton-vpn-next](https://gitlab.com/vpn-next-group/proton-vpn-next)
-> **Прычына:** Нязгода з новай палітыкай Codeberg адносна праектаў, створаных і падтрымоўваных з дапамогай ШІ.
+Готовых APK пока нет, приложение собирается из исходников.
 
-**Proton VPN-Next** — гэта сучасны высокапрадукцыйны **неафіцыйны** Android-кліент для Proton VPN. Распрацаваны з упорам на прыватнасць, хуткасць і стыльны інтэрфейс Material 3.
+- **Рекомендуемый вариант — `stablePrivacy`** (пакет `ru.protonmod.next.privacy`). Он ставится рядом с оригиналом, не конфликтуя с ним.
+- В этом форке у **обоих** вариантов (`standard` и `privacy`) выключены Sentry и OTA. Они отличаются только ID пакета.
 
-### 🚨 Бяспека
-> **Увага:** Падробленыя версіі небяспечныя. Глядзіце **[Дошку ганьбы](WALL_OF_SHAME.md)**.
+### Сборка
 
-### 📱 Сістэмныя патрабаванні
-- **АС:** Android 10+
-- **Архітэктура:** **Толькі ARM64-v8a** (падтрымка x86_64 і 32-біт спынена).
+Требуется: JDK 21, Android SDK (`platforms;android-37.1`, `build-tools;37.0.0`, `ndk;29.0.14206865`, `cmake;3.22.1`), Go 1.25.5, git, python3, bash. Удобнее всего собирать на Linux; на Windows работает через Git Bash.
 
-### ✨ Асноўныя магчымасці
-- **🚀 ByeDPI:** Інструменты для абыходу DPI.
-- **🌐 API Bypass:** Доступ да API праз SOCKS5 і Deno-проксі.
-- **🔐 Privacy Flavor:** Зборка без тэлеметрыі (Sentry) і OTA-абнаўленняў.
-- **📦 Бэкап і аднаўленне:** Экспарт і імпарт сесій.
+```bash
+# SHA-256 вашего ключа подписи (без него приложение покажет предупреждение о неофициальной сборке)
+keytool -list -v -keystore ~/.android/debug.keystore -storepass android | grep SHA256
 
----
+./gradlew :app:assembleStablePrivacyDebug -PEXPECTED_SIGNATURE="AA:BB:…"
+```
 
-## فارسی
+При первой сборке Gradle сам соберёт ядро amnezia-box (`scripts/build-awgbox-lib.sh`) вместе с патчами форка из `scripts/patches/`. Подробности — в [BUILD_INSTRUCTIONS.md](BUILD_INSTRUCTIONS.md).
 
-> [!IMPORTANT]
-> **اطلاعیه انتقال پروژه**
-> این پروژه از Codeberg به **GitLab** منتقل می‌شود.
-> **مخزن جدید:** [https://gitlab.com/vpn-next-group/proton-vpn-next](https://gitlab.com/vpn-next-group/proton-vpn-next)
-> **دلیل:** مخالفت با سیاست‌های جدید Codeberg در مورد پروژه‌های توسعه‌یافته توسط هوش مصنوعی.
+### Настройки телефона для стабильной работы в фоне
 
-**Proton VPN-Next** یک کلاینت **غیررسمی**، مدرن و با کارایی بالا برای اندروید است.
+Прошивки с агрессивным энергосбережением (Realme/ColorOS, Xiaomi, Huawei и др.) убивают фоновые процессы. Для этого приложения:
 
-### 🚨 هشدار امنیتی
-> **هشدار:** نسخه‌های جعلی خطرناک هستند. لیست کانال‌های مخرب را در **[دیوار شرم](WALL_OF_SHAME.md)** مشاهده کنید.
+1. **Автозапуск:** разрешить.
+2. **Батарея:** без ограничений / разрешить фоновую активность.
+3. **Настройки → VPN → шестерёнка у приложения:** включить **«Постоянный VPN»** и **«Блокировать соединения без VPN»**. Тогда при любом обрыве трафик других приложений не утечёт мимо VPN, а приложение поднимет туннель само.
+4. На Realme/ColorOS можно закрепить приложение в «Недавних» (замок на карточке), чтобы смахивание не убивало VPN.
 
-### 📱 نیازمندی‌های سیستم
-- **سیستم‌عامل:** اندروید ۱۰ به بالا
-- **معماری پردازنده:** **فقط ARM64-v8a** (پشتیبانی از x86_64 و ۳۲ بیت متوقف شده است).
+### Диагностика
 
-### ✨ ویژگی‌های کلیدی
-- **🚀 دور زدن DPI (ByeDPI):** ابزارهای داخلی برای عبور از فیلترینج.
-- **🌐 میانبر API:** دسترسی از طریق SOCKS5 و پروکسی Deno.
-- **🔐 نسخه حریم خصوصی:** بدون ابزارهای ردیابی (Sentry) و بدون قابلیت به‌روزرسانی OTA.
-- **📦 پشتیبان‌گیری:** امکان استخراج و وارد کردن نشست‌ها.
+Отладочная сборка ведёт журнал событий VPN: смены сети, рукопожатия, восстановления, без IP-адресов.
+
+```bash
+adb shell run-as ru.protonmod.next.privacy cat files/vpn-events.log
+```
 
 ---
 
-## Қазақша
+## Лицензия и происхождение
 
-> [!IMPORTANT]
-> **ЖОБАНЫ КӨШІРУ ТУРАЛЫ ХАБАРЛАМА**
-> Жоба Codeberg-тен **GitLab**-қа көшеді.
-> **Жаңа репозиторий:** [https://gitlab.com/vpn-next-group/proton-vpn-next](https://gitlab.com/vpn-next-group/proton-vpn-next)
-> **Себебі:** Codeberg-тің жасанды интеллект көмегімен жасалған жобаларға қатысты жаңа саясатымен келіспеушілік.
+GPL-3.0, см. [LICENSE](LICENSE). Форк основан на проекте ProtonVPN-Next (автор SMH01). Уведомления об авторских правах в исходных файлах сохранены, как требует лицензия. Ссылку «forked from» вверху страницы GitHub добавляет автоматически.
 
-**Proton VPN-Next** — Proton VPN үшін заманауи, жоғары өнімді **бейресми** Android клиенті.
-
-### 🚨 Қауіпсіздік
-> **Ескерту:** Жалған нұсқалар қауіпті. Тізімді **[Wall of Shame](WALL_OF_SHAME.md)** бетінен көріңіз.
-
-### 📱 Жүйелік талаптар
-- **Жүйе:** Android 10+
-- **Архитектура:** **Тек ARM64-v8a** (x86_64 және 32-биттік жүйелерді қолдау тоқтатылды).
-
-### ✨ Негізгі мүмкіндіктер
-- **🚀 ByeDPI:** DPI жүйелерін айналып өту құралдары.
-- **🌐 API Bypass:** SOCKS5 және Deno-прокси арқылы API-ге қол жеткізу.
-- **🔐 Privacy Flavor:** Телеметриясыз (Sentry) және OTA-жаңартуларсыз нұсқа.
-- **📦 Сақтау және қалпына келтіру:** Сессиялар мен параметрлерді экспорттау/импорттау.
+Сообщить о проблеме или уязвимости: [Issues](https://github.com/drxekus/ProtonVPN-Next/issues), см. [SECURITY.md](SECURITY.md).
 
 ---
 
-## Українська
+<a name="english"></a>
+# Proton VPN-Next — fork with a stable connection and no data leaks
 
-> [!IMPORTANT]
-> **ПОВІДОМЛЕННЯ ПРО ПЕРЕЇЗД**
-> Проект переїжджає з Codeberg на **GitLab**.
-> **Новий репозиторій:** [https://gitlab.com/vpn-next-group/proton-vpn-next](https://gitlab.com/vpn-next-group/proton-vpn-next)
-> **Причина:** Незгода з новою політикою Codeberg щодо проектів, створених і підтримуваних за допомогою ШІ.
+An unofficial Android client for Proton VPN built on the AmneziaWG core (sing-box / amnezia-box), with traffic obfuscation and censorship circumvention. This is an **independent fork**. It fixes the original's dropped and "fake" connections and removes every request the app made to the original mod author's infrastructure. It is not affiliated with Proton AG or with the original author; use at your own risk.
 
-**Proton VPN-Next** — це сучасний високопродуктивний **неофіційний** Android-клієнт для Proton VPN.
+## Why this fork
 
-### 🚨 Безпека
-> **Увага:** Підроблені версії додатка небезпечні. Список шкідливих каналів доступний у **[Wall of Shame](WALL_OF_SHAME.md)**.
+The original app had three groups of problems:
 
-### 📱 Системні вимоги
-- **ОС:** Android 10+
-- **Архітектура:** **Тільки ARM64-v8a** (підтримку x86_64 та 32-біт припинено).
+1. It showed "Connected" while no traffic went through the tunnel.
+2. The VPN did not recover after a short network loss (cell handover) or after the system killed its process.
+3. It sent data to the author's servers, including your real IP address, bypassing the VPN.
 
-### ✨ Основні можливості
-- **🚀 ByeDPI:** Вбудовані інструменти для обходу DPI.
-- **🌐 API Bypass:** Доступ до API через SOCKS5 та Deno-проксі.
-- **🔐 Privacy Flavor:** Збірка без телеметрії (Sentry) та без OTA-оновлень.
-- **📦 Бекап та відновлення:** Експ��рт та імпорт сесій.
+All three are fixed. See the table above and [FORK_CHANGES.md](FORK_CHANGES.md#english).
 
----
+## Security analysis of the original (commit `e4b08fa`)
 
-## 中文
+This section describes what the original code did and allowed. It is not proof of malicious intent.
 
-> [!IMPORTANT]
-> **项目迁移通知**
-> 本项目正从 Codeberg 迁移至 **GitLab**。
-> **新代码仓库：** [https://gitlab.com/vpn-next-group/proton-vpn-next](https://gitlab.com/vpn-next-group/proton-vpn-next)
-> **原因：** 反对 Codeberg 针对 AI 生成和维护项目的限制性新政策。
+- **Real IP:** on every launch and after every disconnect, the app asked the author's deployments (Cloudflare, Deno, Vercel, a remotely configured "event" host) for your IP address. The socket was bound to the physical network, so the request bypassed the VPN. The VPN exit IP followed after connecting. This happened in all builds and could not be turned off.
+- **Account:** with "API bypass" set to Netlify, Cloudflare, Deno or "event" (Netlify was the default), all Proton API traffic went through the author's proxies, where TLS was terminated. That traffic included:
+  - the login and the SRP exchange, which allows offline password guessing;
+  - 2FA codes;
+  - access and refresh tokens;
+  - an `ANDROID_ID` hash.
 
-**Proton VPN-Next** 是一款现代、高性能的 **非官方** Android 客户端。
+  The published `netlify.toml` is a plain pass-through with no logging. What was actually deployed cannot be verified: the Cloudflare and Deno proxies run code, and the "event" host was delivered remotely.
+- **Sentry, anti-tamper reports, OTA updates** (the APK was downloaded without a hash check) and a daily remote config fetch from six author mirrors. Separately from the author, a TLS trust manager accepted any certificate chain the system rejected.
+- **Not found in the code:** use of the phone as a proxy or network node, and access to VPN traffic content. The OTA channel, however, could have shipped any code later.
+- **If you used the original:**
+  1. Revoke your Proton sessions (account.proton.me → Security → Sessions).
+  2. Change a weak or reused password and enable 2FA.
+  3. Uninstall the original app.
 
-### 🚨 安全警告
-> **警告：** 仿冒版本非常危险。请在 **[Wall of Shame](WALL_OF_SHAME.md)** 查看已知恶意渠道列表。
+## Install
 
-### 📱 系统要求
-- **操作系统：** Android 10+
-- **处理器架构：** **仅限 ARM64-v8a** (已停止对 x86_64 和 32 位架构的支持)。
+There are no binaries yet; build `stablePrivacy` from source:
 
-### ✨ 核心功能
-- **🚀 DPI 绕过 (ByeDPI)：** 内置多种绕过深度包检测的策略。
-- **🌐 API 绕过：** 支持通过 SOCKS5 或 Deno 代理访问 API。
-- **🔐 隐私版 (Privacy Flavor)：** 无遥测数据 (Sentry) 且不支持 OTA 更新。
-- **📦 备份与恢复：** 支持导出和导入会话及设置。
+```bash
+./gradlew :app:assembleStablePrivacyDebug -PEXPECTED_SIGNATURE="<your signing cert SHA-256>"
+```
 
----
+You need JDK 21, SDK platform 37.1, build-tools 37.0.0, NDK 29.0.14206865, CMake 3.22.1, Go 1.25.5 and python3. In this fork, both flavors have Sentry and OTA disabled.
 
-## License / Лицензия
-This project is licensed under the **GNU General Public License v3.0**. See [LICENSE](LICENSE) for details.
+For reliable background operation on aggressive OEM ROMs:
+- allow auto-start;
+- remove battery restrictions;
+- enable Android's "Always-on VPN" with "Block connections without VPN".
+
+License: GPL-3.0. Based on ProtonVPN-Next by SMH01, with copyright notices retained. Report issues at [Issues](https://github.com/drxekus/ProtonVPN-Next/issues).
