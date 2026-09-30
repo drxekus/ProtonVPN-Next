@@ -131,7 +131,7 @@ fun ServerLoadDisplayModeScreen(
 
                 // Description
                 Text(
-                    text = stringResource(R.string.settings_sentry_metrics_desc), // Reusing a metrics related description or similar
+                    text = stringResource(R.string.load_mode_description),
                     style = MaterialTheme.typography.bodyMedium,
                     color = colors.textWeak,
                     textAlign = TextAlign.Center,

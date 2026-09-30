@@ -274,7 +274,10 @@ class AwgBoxConfigGeneratorImpl @Inject constructor(
         val selectedDnsServer = if (torModeEnabled && isPrivateIpv4(dnsServer)) TOR_FALLBACK_DNS else dnsServer
         val config = JsonObject(mapOf(
             "log" to JsonObject(mapOf(
-                "level" to JsonPrimitive(if (netShieldRuleSets.isEmpty()) "info" else "debug"),
+                // WireGuard reports handshakes only at debug level. The VPN service needs them to
+                // tell a tunnel that answers from one that merely started (and NetShield needs the
+                // DNS rule matches); at "info" the handshake watchdog was blind.
+                "level" to JsonPrimitive("debug"),
                 "timestamp" to JsonPrimitive(true)
             )),
             "dns" to JsonObject(buildMap {

@@ -115,7 +115,7 @@ class DashboardViewModelTest {
     private val testServer = LogicalServer(
         id = "us_1", name = "US-FREE-1", tier = 0, features = 0,
         entryCountry = "US", exitCountry = "US", city = "New York",
-        servers = listOf(PhysicalServer(id = "p1", domain = "d1", status = 1, load = 10))
+        servers = listOf(PhysicalServer(id = "p1", domain = "d1", status = 1, wgPublicKey = "pk", load = 10))
     ).apply { averageLoad = 10 }
 
     private val serversFlow = MutableStateFlow(listOf(testServer))

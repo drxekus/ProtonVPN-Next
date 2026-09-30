@@ -38,6 +38,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import ru.protonmod.next.vpn.ServerScope
+import ru.protonmod.next.vpn.ServerSelector
 import ru.protonmod.next.vpn.VpnTunnelState
 import org.json.JSONObject
 import ru.protonmod.next.R
@@ -417,7 +419,7 @@ class DashboardViewModel @Inject constructor(
             
             // Try up to 3 cycles to get an IP that is NOT the original one (handling routing lag)
             for (cycle in 1..3) {
-                location = fetchRealLocation(bypassVpn = false)
+                location = fetchRealLocation()
                 
                 if (location != null) {
                     // If we got an IP and it's different from original (or original is unknown) - success
@@ -460,182 +462,31 @@ class DashboardViewModel @Inject constructor(
     }
 
     /**
-     * Fetches the user's real location based on IP.
+     * The address this device is seen at, and its country, as Proton's own API reports them.
      *
-     * @param bypassVpn If true, attempts to bypass the VPN tunnel (used for original IP).
-     * @return [LocationData] object containing location info, or null in case of an error.
+     * The app used to ask the mod author's deployments (Cloudflare, Deno, Vercel, a remotely
+     * configured "event" host) with the socket bound to the physical network, so on every launch
+     * and after every disconnect a third party learned the user's real address, followed seconds
+     * later by the VPN exit address. Proton already sees the device address on every API call, so
+     * asking it adds no one. With the tunnel up the same call returns the VPN exit address.
+     *
+     * @return null when Proton could not be reached; the dashboard then keeps what it had.
      */
-    /**
-     * The address this device is seen at, and the country it belongs to.
-     *
-     * Asks this project's own deployments first; see [IpEchoSources] for the
-     * order and for why the two public services are last.
-     *
-     * @param bypassVpn when true the request is bound to a physical interface,
-     *   so the answer is the device's real address rather than the tunnel's.
-     * @return null only when every source failed.
-     */
-    private suspend fun fetchRealLocation(bypassVpn: Boolean = true): LocationData? = withContext(Dispatchers.IO) {
-        val startTime = System.currentTimeMillis()
-
-        // CRITICAL FIX: To truly bypass the VPN tunnel on Android, we must bind the socket
-        // to a physical network interface (WiFi or Cellular). Proxy.NO_PROXY only affects
-        // HTTP proxies, not the routing table / TUN interface.
-        val client = if (bypassVpn) {
-            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-            val network = cm.activeNetwork?.takeIf { activeNetwork ->
-                val caps = cm.getNetworkCapabilities(activeNetwork)
-                caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true &&
-                        caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN) == true
-            }
-
-            if (network != null) {
-                noProxyClient.newBuilder()
-                    .socketFactory(network.socketFactory)
-                    .build()
-            } else {
-                noProxyClient
-            }
-        } else {
-            defaultClient
-        }
-
-        val russian = RegionUtils.isRussianRegion()
-        val sources = IpEchoSources.ordered(
-            isRussianRegion = russian,
-            eventBypassUrl = settingsManager.getEventBypassUrlSync(),
-        )
-
-        for (source in sources) {
-            // Our own deployments earn a second try. A service that is blocked,
-            // or that refuses this traffic on purpose, refuses it just as fast
-            // the third time — the old three-attempt loop over three such
-            // services is what turned a failure into a twenty-second wait.
-            val attempts = if (source.isOwn) 2 else 1
-
-            for (attempt in 1..attempts) {
-                try {
-                    val request = Request.Builder().url(source.url).build()
-                    val found = client.newCall(request).execute().use { response ->
-                        if (!response.isSuccessful) return@use null
-                        val body = response.body.string()
-                        if (body.isBlank()) return@use null
-                        readLocation(body)
-                    }
-
-                    if (found != null) {
-                        val located = ensureCountry(found, client, source, russian)
-                        val duration = System.currentTimeMillis() - startTime
-                        ProtonLogger.recordDistribution("location_fetch_latency", duration.toDouble())
-                        ProtonLogger.recordCount("location_fetch_success", 1.0)
-                        ProtonLogger.d("DashboardVM", "Location resolved by ${source.id}")
-
-                        return@withContext located
-                    }
-                } catch (e: Exception) {
-                    // Named by source, not by URL: a log that reads
-                    // "[URL_REDACTED] timed out" cannot tell anyone which
-                    // deployment to go and look at.
-                    ProtonLogger.w("DashboardVM", "Fetch failed from ${source.id} (attempt $attempt): ${e.message}")
-                }
-                if (attempt < attempts) delay(1000)
-            }
-        }
-
-        // Metrics
-        ProtonLogger.recordCount("location_fetch_error", 1.0)
-        null
-    }
-
-    /**
-     * Reads an address out of whichever shape a source answers in.
-     *
-     * A missing country is not a failure. The Deno deployment has no country
-     * signal at all, and demanding one before accepting its answer is what left
-     * the dashboard with no address to show even when a mirror had replied.
-     *
-     * The country is taken from the first field that actually holds a two-letter
-     * code, because the keys collide across sources: our own deployments put the
-     * code in `country`, while one public service puts the country's full name
-     * there and the code in `cc`.
-     */
-    private fun readLocation(body: String): LocationData? {
-        val json = JSONObject(body)
-
-        val ip = IpEchoSources.normaliseAddress(
-            json.optString("ip")
-                .ifBlank { json.optString("ipAddress") }
-                .ifBlank { json.optString("query") }
-        )
-        if (ip.isBlank()) return null
-
-        val code = listOf(
-            json.optString("country"),
-            json.optString("cc"),
-            json.optString("countryCode"),
-            json.optString("country_code"),
-        ).map { it.trim().uppercase() }
-            .firstOrNull { candidate -> candidate.length == 2 && candidate.all { it in 'A'..'Z' } }
-            .orEmpty()
-
-        // XX and T1 are placeholders for "unknown" and "Tor" rather than
-        // countries; passing them on would be a lie the dashboard cannot detect.
-        return LocationData(ip, if (code == "XX" || code == "T1") "" else code)
-    }
-
-    /**
-     * Fills in a country the answering deployment could not name.
-     *
-     * Only a host that is itself told the caller's country can answer this.
-     * Cloudflare and Vercel are; the Deno deployment is not, and returns the
-     * field empty.
-     *
-     * Every candidate is one of ours, so the address is never handed to a
-     * geolocation service merely to be labelled. They are tried in turn because
-     * the first version of this asked Cloudflare alone — the host ranked last
-     * inside Russia for being unreachable — so an address resolved through Deno
-     * arrived with no country at all, which is exactly how this failed.
-     *
-     * Best effort on purpose, and on the same client, so the country describes
-     * the same route the address was read from. An unanswered probe leaves the
-     * country unknown rather than discarding an address the user asked for.
-     */
-    private fun ensureCountry(
-        found: LocationData,
-        client: OkHttpClient,
-        source: IpEchoSources.Source,
-        isRussianRegion: Boolean
-    ): LocationData {
-        if (found.countryCode.isNotBlank() || !source.isOwn) return found
-
-        // Deliberately shorter than the client's own timeout: some of these
-        // hosts are expected to be unreachable, and the address is already
-        // resolved and waiting to be shown beside whatever country arrives.
-        val probeClient = client.newBuilder()
-            .callTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
-            .build()
-
-        for (probe in IpEchoSources.countryProbeSources(isRussianRegion)) {
-            // The deployment that just answered has already said it knows no
-            // country; asking it again only costs another round trip.
-            if (probe.url == source.url) continue
-
-            try {
-                val request = Request.Builder().url(probe.url).build()
-                val probed = probeClient.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) return@use null
-                    readLocation(response.body.string())
-                }
-
-                if (probed != null && probed.countryCode.isNotBlank()) {
-                    return found.copy(countryCode = probed.countryCode)
-                }
-            } catch (e: Exception) {
-                ProtonLogger.w("DashboardVM", "Country probe failed at ${probe.id}: ${e.message}")
-            }
-        }
-
-        return found
+    private suspend fun fetchRealLocation(): LocationData? = withContext(Dispatchers.IO) {
+        val session = sessionDao.getSession() ?: return@withContext null
+        val body = vpnRepository.getUserLocation(session.accessToken, session.sessionId)
+            .onFailure { ProtonLogger.w("DashboardVM", "Location lookup failed: ${it.message}") }
+            .getOrNull()
+            ?: return@withContext null
+        runCatching {
+            val json = JSONObject(body)
+            val ip = IpEchoSources.normaliseAddress(json.optString("IP"))
+            if (ip.isBlank()) return@runCatching null
+            val code = json.optString("Country").trim().uppercase()
+                .takeIf { candidate -> candidate.length == 2 && candidate.all { it in 'A'..'Z' } }
+                .orEmpty()
+            LocationData(ip, code)
+        }.getOrNull()
     }
 
     private data class LocationData(val ip: String, val countryCode: String)
@@ -762,9 +613,11 @@ class DashboardViewModel @Inject constructor(
     }
 
     private suspend fun connectToFastest(servers: List<LogicalServer>) {
-        val bestServer = servers.minByOrNull { it.averageLoad }
+        val bestServer = ServerSelector.fastest(servers)
         if (bestServer != null) {
-            initiateConnection(bestServer)
+            initiateConnection(bestServer, failoverScope = ServerScope.AnyServer)
+        } else {
+            _errorMessage.value = context.getString(R.string.label_server_unavailable)
         }
     }
 
@@ -772,8 +625,10 @@ class DashboardViewModel @Inject constructor(
         val session = sessionDao.getSession() ?: return
 
         val targetServer = findBestServerForProfile(profile, allServers) ?: return
-        val physicalServer = targetServer.servers.filter { it.status == 1 }.minByOrNull { it.load }
-            ?: targetServer.servers.minByOrNull { it.load } ?: return
+        val physicalServer = ServerSelector.pickPhysical(targetServer) ?: run {
+            _errorMessage.value = context.getString(R.string.label_server_unavailable)
+            return
+        }
 
         var obfuscationParams: AmneziaVpnManager.ObfuscationParams? = null
         if (profile.isObfuscationEnabled && profile.obfuscationProfileId != null) {
@@ -792,6 +647,9 @@ class DashboardViewModel @Inject constructor(
             }
         }
 
+        val failoverScope = ServerSelector.scopeForTarget(
+            profile.targetServerId, profile.targetCountry, profile.targetCity
+        )
         connectedServerState.setConnectedServer(targetServer)
         val vpnState = amneziaVpnManager.vpnState.value
 
@@ -801,7 +659,8 @@ class DashboardViewModel @Inject constructor(
                 overridePort = profile.port,
                 overrideObfuscation = profile.isObfuscationEnabled,
                 obfuscationParams = obfuscationParams,
-                logicalServer = targetServer
+                logicalServer = targetServer,
+                failoverScope = failoverScope
             )
         } else {
             amneziaVpnManager.connect(
@@ -809,7 +668,8 @@ class DashboardViewModel @Inject constructor(
                 overridePort = profile.port,
                 overrideObfuscation = profile.isObfuscationEnabled,
                 obfuscationParams = obfuscationParams,
-                logicalServer = targetServer
+                logicalServer = targetServer,
+                failoverScope = failoverScope
             )
         }
 
@@ -911,24 +771,32 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    private suspend fun initiateConnection(server: LogicalServer) {
+    private suspend fun initiateConnection(server: LogicalServer, failoverScope: ServerScope? = null) {
         val session = sessionDao.getSession()
         if (session == null) {
             _errorMessage.value = context.getString(R.string.error_session_not_found)
             return
         }
 
-        // Reliable server selection: Fallback to any server with min load if status == 1 is absent.
-        val physicalServer = server.servers.filter { it.status == 1 }.minByOrNull { it.load }
-            ?: server.servers.minByOrNull { it.load }
+        // Only an online physical server can answer; a server under maintenance would leave the
+        // tunnel "up" with nothing on the other end.
+        val physicalServer = ServerSelector.pickPhysical(server)
 
         if (physicalServer != null) {
             connectedServerState.setConnectedServer(server)
             val vpnState = amneziaVpnManager.vpnState.value
             if (vpnState != AmneziaVpnManager.VpnState.DISCONNECTED) {
-                amneziaVpnManager.reconnect(server.id, physicalServer, session, logicalServer = server)
+                amneziaVpnManager.reconnect(
+                    server.id, physicalServer, session,
+                    logicalServer = server,
+                    failoverScope = failoverScope
+                )
             } else {
-                amneziaVpnManager.connect(server.id, physicalServer, session, logicalServer = server)
+                amneziaVpnManager.connect(
+                    server.id, physicalServer, session,
+                    logicalServer = server,
+                    failoverScope = failoverScope
+                )
             }
         } else {
             _errorMessage.value = context.getString(R.string.label_server_unavailable)

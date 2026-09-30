@@ -36,6 +36,7 @@ import ru.protonmod.next.ota.OTAUpdateManager
 import ru.protonmod.next.utils.NetworkMonitor
 import ru.protonmod.next.utils.ProtonLogger
 import ru.protonmod.next.vpn.VpnAutomationManager
+import ru.protonmod.next.data.network.byedpi.ByeDpiManager
 import javax.inject.Inject
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -65,6 +66,9 @@ class ProtonNextApp : Application(), Configuration.Provider {
 
     @Inject
     lateinit var vpnAutomationManager: Lazy<VpnAutomationManager>
+
+    @Inject
+    lateinit var byeDpiManager: Lazy<ByeDpiManager>
 
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
@@ -133,9 +137,20 @@ class ProtonNextApp : Application(), Configuration.Provider {
 
             if (!isMainProcess) return@launch
 
+            // The AI assistant is gone; do not leave its stored API key behind.
+            try {
+                settings.removeLegacyAiSettings()
+            } catch (e: Exception) {
+                ProtonLogger.w("ProtonNextApp", "Could not remove legacy AI settings: ${e.message}")
+            }
+
             // Instantiate main-process-only graphs here. Keeping them Lazy prevents the
             // dedicated :vpn process from opening Room during Application injection.
             vpnAutomationManager.get()
+            // ByeDPI's local proxy is started and stopped by this manager. It used to be created
+            // only by the login and settings screens, so with "API bypass: ByeDPI" every Proton
+            // request from the dashboard or from a background reconnect hit a closed port 1080.
+            byeDpiManager.get()
             vpnRepository.get().startAutoUpdate()
             SessionRefreshWorker.schedule(this@ProtonNextApp)
 

@@ -27,6 +27,8 @@ import android.widget.RemoteViews
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import ru.protonmod.next.vpn.ServerScope
+import ru.protonmod.next.vpn.ServerSelector
 import ru.protonmod.next.vpn.VpnTunnelState
 import ru.protonmod.next.R
 import ru.protonmod.next.data.local.SessionDao
@@ -139,7 +141,7 @@ class VpnNothingWidgetProvider : AppWidgetProvider() {
         val servers = vpnRepository.getCachedServers()
         if (servers.isEmpty()) return
 
-        val bestServer = servers.minByOrNull { it.averageLoad }
+        val bestServer = ServerSelector.fastest(servers)
         if (bestServer != null) {
             initiateConnection(bestServer)
         }
@@ -147,9 +149,12 @@ class VpnNothingWidgetProvider : AppWidgetProvider() {
 
     private suspend fun initiateConnection(server: LogicalServer) {
         val session = sessionDao.getSession() ?: return
-        val physicalServer = server.servers.filter { it.status == 1 }.minByOrNull { it.load }
-            ?: server.servers.minByOrNull { it.load } ?: return
+        val physicalServer = ServerSelector.pickPhysical(server) ?: return
 
-        amneziaVpnManager.connect(server.id, physicalServer, session, logicalServer = server)
+        amneziaVpnManager.connect(
+            server.id, physicalServer, session,
+            logicalServer = server,
+            failoverScope = ServerScope.AnyServer
+        )
     }
 }

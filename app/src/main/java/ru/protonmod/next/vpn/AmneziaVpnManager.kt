@@ -18,9 +18,13 @@
 package ru.protonmod.next.vpn
 
 import android.content.BroadcastReceiver
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.ServiceConnection
+import android.os.IBinder
+import android.os.SystemClock
 import androidx.core.net.toUri
 import ru.protonmod.next.utils.ProtonLogger
 import retrofit2.HttpException
@@ -52,6 +56,7 @@ import ru.protonmod.next.netshield.LocalNetShield
 import ru.protonmod.next.data.local.SessionEntity
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 import ru.protonmod.next.data.local.SessionDao
 import ru.protonmod.next.data.network.LogicalServer
 import ru.protonmod.next.data.network.PhysicalServer
@@ -100,6 +105,17 @@ class AmneziaVpnManager @Inject constructor(
         private const val REFRESH_THRESHOLD_MS = 1 * 3600 * 1000L // 1 hour
         private const val RETRY_DELAY_MS = 15 * 60 * 1000L // 15 minutes
         private const val PERIODIC_REFRESH_MS = 2 * 3600 * 1000L // 2 hours
+
+        /** The HTTP check through a fresh tunnel got no answer. */
+        private const val REASON_PROBE_FAILED = "probe_failed"
+
+        /** Ports tried, in this order, when the port setting is "automatic". */
+        private val AUTO_PORTS = listOf(443, 51820, 1194, 123)
+        private const val MAX_FAILOVER_ATTEMPTS = 8
+        /** Endpoints of one server to try before a scoped connection moves to another server. */
+        private const val ATTEMPTS_PER_SCOPED_SERVER = 2
+        /** How long a restarted VPN service may take to report back before the tunnel counts as down. */
+        private val SERVICE_RESTART_GRACE = 15.seconds
     }
 
     sealed class CertificateState {
@@ -117,6 +133,8 @@ class AmneziaVpnManager @Inject constructor(
     sealed interface ConnectionWarning {
         data object Ipv6OnlyEndpoint : ConnectionWarning
         data object InvalidProxyConfiguration : ConnectionWarning
+        /** Every server and port the connection was allowed to try stayed silent. */
+        data object ServerNotResponding : ConnectionWarning
     }
 
     private class ExpectedConnectionException(
@@ -181,11 +199,33 @@ class AmneziaVpnManager @Inject constructor(
         val server: PhysicalServer,
         val overridePort: Int?,
         val overrideObfuscation: Boolean?,
-        val obfuscationParams: ObfuscationParams?
+        val obfuscationParams: ObfuscationParams?,
+        /** Where a silent server may be swapped for another one; null keeps the chosen server. */
+        val failoverScope: ServerScope? = null,
+        /** The UDP port this attempt used; 0 until the attempt picked one. */
+        val port: Int = 0,
     )
+
+    /**
+     * Endpoints that did not answer during the current connection. A server that stays silent is
+     * replaced by its other physical servers and ports, then — when the user asked for "fastest",
+     * a country or a city rather than one exact server — by the next best server in that scope.
+     */
+    private class FailoverState {
+        val failedEndpoints = mutableSetOf<String>()
+        val failedServers = mutableSetOf<String>()
+        var attempts = 0
+        var attemptsOnServer = 0
+    }
 
     @Volatile
     private var lastConnectionRequest: LastConnectionRequest? = null
+    @Volatile
+    private var failover = FailoverState()
+    private val failoverMutex = Mutex()
+    /** When the VPN service last reported its state (elapsedRealtime). */
+    @Volatile
+    private var lastServiceMessageAt = 0L
 
     private var isReconnecting = false
     private var isPaused = false
@@ -201,11 +241,13 @@ class AmneziaVpnManager @Inject constructor(
         val filter = IntentFilter().apply {
             addAction(ProtonVpnService.ACTION_STATE_CHANGED)
             addAction(ProtonVpnService.ACTION_STATS_UPDATED)
+            addAction(ProtonVpnService.ACTION_TUNNEL_FAILED)
         }
         ContextCompat.registerReceiver(context, object : BroadcastReceiver() {
             override fun onReceive(ctx: Context?, intent: Intent?) {
                 when (intent?.action) {
                     ProtonVpnService.ACTION_STATE_CHANGED -> {
+                        lastServiceMessageAt = SystemClock.elapsedRealtime()
                         val stateStr = intent.getStringExtra(ProtonVpnService.EXTRA_STATE)
                         val serverId = intent.getStringExtra(ProtonVpnService.EXTRA_LOGICAL_SERVER_ID)
                         val isServiceReconnecting = intent.getBooleanExtra(ProtonVpnService.EXTRA_IS_RECONNECTING, false)
@@ -225,6 +267,11 @@ class AmneziaVpnManager @Inject constructor(
                                 if (!_isConnecting.value) {
                                     verificationCycle = vpnNetworkMonitor.beginVerificationCycle()
                                 }
+                                // While the service (re)starts the engine there is no tunnel;
+                                // keeping the old UP here hid restarts from everything else.
+                                verificationJob?.cancel()
+                                _rawTunnelState.value = VpnTunnelState.DOWN
+                                _tunnelState.value = VpnTunnelState.DOWN
                                 _isConnecting.value = true
                                 updateVpnState(VpnState.CONNECTING)
                                 return@let
@@ -246,22 +293,21 @@ class AmneziaVpnManager @Inject constructor(
                             _isConnecting.value = false
 
                             when (newState) {
-                                VpnTunnelState.UP -> when {
-                                    serviceVerified -> {
-                                        updateVpnState(VpnState.CONNECTED)
-                                        if (previousState != VpnTunnelState.UP) {
+                                VpnTunnelState.UP -> {
+                                    if (previousState != VpnTunnelState.UP) onTunnelCameUp()
+                                    when {
+                                        // The service saw the WireGuard handshake: the server
+                                        // answered. Confirm traffic end to end before "Connected".
+                                        serviceVerified -> if (_vpnState.value != VpnState.CONNECTED) {
                                             startTunnelVerification()
                                         }
+                                        // Engine up, no handshake yet: never show "Connected".
+                                        _vpnState.value != VpnState.VERIFYING -> {
+                                            verificationJob?.cancel()
+                                            updateVpnState(VpnState.VERIFYING)
+                                        }
+                                        else -> ProtonLogger.v(TAG, "Waiting for the WireGuard handshake")
                                     }
-                                    previousState != VpnTunnelState.UP ||
-                                        _vpnState.value == VpnState.CONNECTING -> {
-                                        handleTunnelStateChange(VpnTunnelState.UP)
-                                    }
-                                    _vpnState.value == VpnState.CONNECTED -> {
-                                        updateVpnState(VpnState.VERIFYING)
-                                        ProtonLogger.d(TAG, "Established AWG tunnel started a new handshake")
-                                    }
-                                    else -> ProtonLogger.v(TAG, "Ignoring duplicate tunnel UP state")
                                 }
                                 VpnTunnelState.DOWN -> {
                                     verificationCycle = null
@@ -274,6 +320,10 @@ class AmneziaVpnManager @Inject constructor(
                                 }
                             }
                         }
+                    }
+                    ProtonVpnService.ACTION_TUNNEL_FAILED -> {
+                        val reason = intent.getStringExtra(ProtonVpnService.EXTRA_FAILURE_REASON).orEmpty()
+                        onTunnelFailed(reason)
                     }
                     ProtonVpnService.ACTION_STATS_UPDATED -> {
                         val serverId = intent.getStringExtra(ProtonVpnService.EXTRA_LOGICAL_SERVER_ID)
@@ -327,6 +377,8 @@ class AmneziaVpnManager @Inject constructor(
             }
         }
 
+        watchServiceProcess()
+
         applicationScope.launch {
             combine(
                 settingsManager.ipRotationEnabled,
@@ -357,11 +409,7 @@ class AmneziaVpnManager @Inject constructor(
         _tunnelState.value = newState
         when (newState) {
             VpnTunnelState.UP -> {
-                isPaused = false
-                pauseJob?.cancel()
-                applicationScope.launch { settingsManager.setPauseEndTime(0) }
-                
-                checkAndRefreshCertificateProactively()
+                onTunnelCameUp()
                 startTunnelVerification()
             }
             VpnTunnelState.DOWN -> {
@@ -383,6 +431,75 @@ class AmneziaVpnManager @Inject constructor(
         }
     }
 
+    /**
+     * Binds to the VPN service without BIND_AUTO_CREATE, which neither starts nor keeps it alive
+     * but makes Android report its death here. A killed ":vpn" process (an OEM battery manager,
+     * a crash) cannot send a DOWN broadcast, so the app used to keep showing "Connected" with no
+     * tunnel at all.
+     */
+    private fun watchServiceProcess() {
+        val connection = object : ServiceConnection {
+            override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+                ProtonLogger.d(TAG, "Watching the VPN service process")
+            }
+
+            override fun onServiceDisconnected(name: ComponentName?) {
+                onServiceProcessDied()
+            }
+        }
+        runCatching {
+            context.bindService(
+                Intent(context, ProtonVpnService::class.java).setAction(ProtonVpnService.ACTION_BIND_STATUS),
+                connection,
+                0
+            )
+        }.onFailure { ProtonLogger.w(TAG, "Could not watch the VPN service process: ${it.message}") }
+    }
+
+    private fun onServiceProcessDied() {
+        if (_vpnState.value == VpnState.DISCONNECTED || _vpnState.value == VpnState.DISCONNECTING) return
+        ProtonLogger.w(TAG, "The VPN service process died while the tunnel was ${_vpnState.value}")
+        verificationJob?.cancel()
+        _rawTunnelState.value = VpnTunnelState.DOWN
+        _tunnelState.value = VpnTunnelState.DOWN
+        applicationScope.launch {
+            val request = lastConnectionRequest
+            val session = sessionDao.getSession()
+            if (request == null || session == null || isPaused || !settingsManager.connectionAutoReconnect.first()) {
+                handleTunnelStateChange(VpnTunnelState.DOWN)
+                return@launch
+            }
+            // Start the service again with the same target. If Android refuses a foreground start
+            // because the app is in the background, the state falls back to "disconnected" rather
+            // than claiming a tunnel that does not exist.
+            val restartAt = SystemClock.elapsedRealtime()
+            startBackgroundAttempt(request.logicalServerId)
+            val result = connectInternal(request, session)
+            if (result.isFailure) ProtonLogger.w(TAG, "Could not restart the VPN service after its death")
+            delay(SERVICE_RESTART_GRACE)
+            if (lastServiceMessageAt < restartAt) {
+                ProtonLogger.w(TAG, "The VPN service did not come back; showing the tunnel as down")
+                _isConnecting.value = false
+                handleTunnelStateChange(VpnTunnelState.DOWN)
+            }
+        }
+    }
+
+    /** Housekeeping once per tunnel that comes up, verified or not yet. */
+    private fun onTunnelCameUp() {
+        isPaused = false
+        pauseJob?.cancel()
+        applicationScope.launch { settingsManager.setPauseEndTime(0) }
+        checkAndRefreshCertificateProactively()
+    }
+
+    /**
+     * Decides whether the tunnel may be shown as connected. The service reports the WireGuard
+     * handshake; the balanced and aggressive modes additionally require a real HTTP exchange
+     * through the new VPN network. A tunnel that fails this is no longer reported as connected
+     * ("keeping the established tunnel" used to paint a dead tunnel green); another endpoint is
+     * tried instead.
+     */
     private fun startTunnelVerification() {
         if (verificationJob?.isActive == true) {
             ProtonLogger.v(TAG, "Connectivity verification is already running")
@@ -391,26 +508,17 @@ class AmneziaVpnManager @Inject constructor(
 
         verificationJob = applicationScope.launch {
             val mode = settingsManager.connectionVerificationMode.first()
-            val required = settingsManager.connectionVerificationRequired.first()
-            if (mode == ConnectionVerificationMode.DISABLED) {
+            if (mode == ConnectionVerificationMode.DISABLED || mode.handshakeOnly) {
                 verificationCycle = null
-                updateVpnState(VpnState.CONNECTED)
-                systemContextWrapper.setVpnVerified()
-                return@launch
-            }
-            if (mode.handshakeOnly) {
-                verificationCycle = null
-                updateVpnState(VpnState.VERIFYING)
-                ProtonLogger.d(TAG, "Waiting for AmneziaWG handshake confirmation from VPN service")
+                onTunnelVerified()
                 return@launch
             }
 
             val cycle = verificationCycle ?: vpnNetworkMonitor.beginVerificationCycle().also {
                 verificationCycle = it
             }
-            if (required) updateVpnState(VpnState.VERIFYING)
-            else updateVpnState(VpnState.CONNECTED)
-            ProtonLogger.d(TAG, "Checking VPN usability (${mode.name.lowercase()}, required=$required)")
+            updateVpnState(VpnState.VERIFYING)
+            ProtonLogger.d(TAG, "Checking that traffic flows through the tunnel (${mode.name.lowercase()})")
 
             try {
                 val usable = vpnNetworkMonitor.awaitUsable(
@@ -422,24 +530,131 @@ class AmneziaVpnManager @Inject constructor(
 
                 if (usable) {
                     ProtonLogger.i(TAG, "VPN connectivity confirmed")
+                    onTunnelVerified()
                 } else {
-                    ProtonLogger.w(TAG, "VPN usability probe timed out; keeping the established tunnel")
+                    ProtonLogger.w(TAG, "No traffic through the tunnel; trying another endpoint")
+                    onTunnelFailed(REASON_PROBE_FAILED)
                 }
-                updateVpnState(VpnState.CONNECTED)
-                systemContextWrapper.setVpnVerified()
             } catch (cancellation: CancellationException) {
                 throw cancellation
             } catch (error: Exception) {
                 ProtonLogger.w(TAG, "VPN usability verification failed: ${error.message}")
-                if (_tunnelState.value == VpnTunnelState.UP) {
-                    updateVpnState(VpnState.CONNECTED)
-                    systemContextWrapper.setVpnVerified()
-                }
+                if (_tunnelState.value == VpnTunnelState.UP) onTunnelFailed(REASON_PROBE_FAILED)
             } finally {
-                verificationCycle = null
+                // A cancelled check finishes after the next attempt may have begun its own cycle.
+                if (verificationCycle === cycle) verificationCycle = null
             }
         }
     }
+
+    private suspend fun onTunnelVerified() {
+        updateVpnState(VpnState.CONNECTED)
+        systemContextWrapper.setVpnVerified()
+        if (_connectionWarning.value == ConnectionWarning.ServerNotResponding) {
+            _connectionWarning.value = null
+        }
+        failover = FailoverState()
+        val request = lastConnectionRequest ?: return
+        if (request.port != 0 && isAutoPort(request.overridePort)) {
+            settingsManager.setLastWorkingAutoPort(request.port)
+        }
+    }
+
+    /**
+     * The service found that a tunnel does not carry traffic. A server that never answered the
+     * handshake, or answered but passed no traffic, is replaced by the next candidate. A tunnel
+     * that worked and then stalled is first restarted as is by the service; only if the restart
+     * does not answer either does it come back here as a handshake timeout.
+     */
+    private fun onTunnelFailed(reason: String) {
+        when (reason) {
+            ProtonVpnService.FAILURE_HANDSHAKE_TIMEOUT, REASON_PROBE_FAILED -> applicationScope.launch {
+                failoverMutex.withLock { performFailover(reason) }
+            }
+            ProtonVpnService.FAILURE_PERMANENT -> {
+                ProtonLogger.w(TAG, "VPN service gave up on the tunnel")
+                _isConnecting.value = false
+            }
+            else -> ProtonLogger.d(TAG, "VPN service is recovering the tunnel ($reason)")
+        }
+    }
+
+    private suspend fun performFailover(reason: String) {
+        if (isPaused || _vpnState.value == VpnState.DISCONNECTED || _vpnState.value == VpnState.DISCONNECTING) return
+        if (!settingsManager.connectionAutoReconnect.first()) return
+        val request = lastConnectionRequest ?: return
+        val session = sessionDao.getSession() ?: return
+        val next = nextFailoverCandidate(request) ?: run {
+            ProtonLogger.w(TAG, "No other endpoint left to try; the VPN service keeps retrying")
+            _connectionWarning.value = ConnectionWarning.ServerNotResponding
+            return
+        }
+        ProtonLogger.w(
+            TAG,
+            "Endpoint ${request.server.domain}:${request.port} failed ($reason); trying ${next.server.domain}:${next.port}"
+        )
+        if (next.logicalServerId != request.logicalServerId) {
+            vpnRepositoryProvider.get().getCachedServers().find { it.id == next.logicalServerId }
+                ?.let(connectedServerState::setConnectedServer)
+        }
+        currentServerId = next.logicalServerId
+        connectionJob?.cancel()
+        verificationJob?.cancel()
+        updateVpnState(VpnState.CONNECTING)
+        connectionJob = applicationScope.launch(dispatcherProvider.io()) {
+            connectInternal(next, session, background = true)
+        }
+    }
+
+    private suspend fun nextFailoverCandidate(request: LastConnectionRequest): LastConnectionRequest? {
+        val state = failover
+        state.failedEndpoints += endpointKey(request.server.id, request.port)
+        state.attempts++
+        state.attemptsOnServer++
+        if (state.attempts > MAX_FAILOVER_ATTEMPTS) return null
+
+        val servers = vpnRepositoryProvider.get().getCachedServers()
+        val ports = if (isAutoPort(request.overridePort)) autoPortOrder()
+        else listOf(request.port.takeIf { it != 0 } ?: resolvePort(request.overridePort))
+        val scope = request.failoverScope
+        val sameServerBudget = if (scope == null) MAX_FAILOVER_ATTEMPTS else ATTEMPTS_PER_SCOPED_SERVER
+
+        val current = servers.find { it.id == request.logicalServerId }
+        if (current != null && state.attemptsOnServer < sameServerBudget) {
+            val physicals = ServerSelector.onlinePhysicalServers(current).take(2)
+            for (port in ports) {
+                for (physical in physicals) {
+                    if (endpointKey(physical.id, port) !in state.failedEndpoints) {
+                        return request.copy(server = physical, port = port)
+                    }
+                }
+            }
+        }
+
+        state.failedServers += request.logicalServerId
+        if (scope == null) return null
+        val next = ServerSelector.fastest(servers.filter(scope::accepts), exclude = state.failedServers)
+            ?: return null
+        val physical = ServerSelector.pickPhysical(next) ?: return null
+        state.attemptsOnServer = 0
+        return request.copy(logicalServerId = next.id, server = physical, port = ports.first())
+    }
+
+    private fun endpointKey(physicalId: String, port: Int) = "$physicalId:$port"
+
+    private suspend fun isAutoPort(overridePort: Int?): Boolean =
+        (overridePort == null || overridePort == 0) && settingsManager.vpnPort.first() == 0
+
+    /** Automatic ports, the last one that worked first. */
+    private suspend fun autoPortOrder(): List<Int> {
+        val preferred = settingsManager.lastWorkingAutoPort.first().takeIf { it in AUTO_PORTS }
+        return (listOfNotNull(preferred) + AUTO_PORTS).distinct()
+    }
+
+    private suspend fun resolvePort(overridePort: Int?): Int =
+        overridePort?.takeIf { it != 0 }
+            ?: settingsManager.vpnPort.first().takeIf { it != 0 }
+            ?: autoPortOrder().first()
 
     private fun updateCertificateState(certPem: String?) {
         if (certPem.isNullOrEmpty()) {
@@ -637,13 +852,14 @@ class AmneziaVpnManager @Inject constructor(
         overrideObfuscation: Boolean? = null,
         obfuscationParams: ObfuscationParams? = null,
         logicalServer: LogicalServer? = null,
-        forceFallback: Boolean = false
+        forceFallback: Boolean = false,
+        failoverScope: ServerScope? = null
     ) {
         // Immediate UI update to avoid "VPN" placeholder
         if (logicalServer != null) {
             connectedServerState.setConnectedServer(logicalServer)
         }
-        
+
         applicationScope.launch {
             if (isPaused || settingsManager.pauseEndTime.first() > System.currentTimeMillis()) {
                 val persistentEnd = settingsManager.pauseEndTime.first()
@@ -651,7 +867,9 @@ class AmneziaVpnManager @Inject constructor(
                 return@launch
             }
 
-            if (currentServerId == logicalServerId && _tunnelState.value == VpnTunnelState.UP) {
+            // Only a verified tunnel counts as "already connected". A tunnel that is up but does
+            // not carry traffic used to swallow every tap on the same server.
+            if (currentServerId == logicalServerId && _vpnState.value == VpnState.CONNECTED) {
                 ProtonLogger.d(TAG, "Already connected to $logicalServerId")
                 return@launch
             }
@@ -660,9 +878,10 @@ class AmneziaVpnManager @Inject constructor(
             verificationJob?.cancel()
 
             _connectionWarning.value = null
+            failover = FailoverState()
             updateVpnState(VpnState.CONNECTING)
             _isConnecting.value = true
-            
+
             connectionJob = applicationScope.launch(dispatcherProvider.io()) {
                 currentServerId = logicalServerId
 
@@ -672,12 +891,77 @@ class AmneziaVpnManager @Inject constructor(
                     connectedServerState.setConnectedServer(resolved)
                 }
 
-                connectInternal(logicalServerId, server, session, overridePort, overrideObfuscation, obfuscationParams, forceFallback)
+                connectInternal(
+                    LastConnectionRequest(
+                        logicalServerId, server, overridePort, overrideObfuscation, obfuscationParams, failoverScope
+                    ),
+                    session,
+                    forceFallback = forceFallback
+                )
 
                 // Track connection attempt
                 ProtonLogger.recordCount("vpn_connection_attempt", 1.0)
             }
         }
+    }
+
+    /**
+     * Connects from the background on behalf of the VPN service (Always-on start without a saved
+     * tunnel, or a saved tunnel that no longer answers) and returns once the service has the
+     * new configuration.
+     */
+    suspend fun connectForService(
+        logicalServer: LogicalServer,
+        server: PhysicalServer,
+        session: SessionEntity,
+        failoverScope: ServerScope?
+    ) {
+        connectedServerState.setConnectedServer(logicalServer)
+        startBackgroundAttempt(logicalServer.id)
+        connectInternal(
+            LastConnectionRequest(logicalServer.id, server, null, null, null, failoverScope),
+            session,
+            background = true
+        )
+    }
+
+    /**
+     * Replays the last connection of this process for the VPN service; false if there is none.
+     * A request that arrives while this process is already moving to another endpoint is left
+     * alone: that attempt is the answer.
+     */
+    suspend fun reconnectCurrentForService(): Boolean {
+        val request = lastConnectionRequest ?: return false
+        if (connectionJob?.isActive == true || _vpnState.value == VpnState.CONNECTED) {
+            ProtonLogger.d(TAG, "VPN service request ignored: a connection is already being handled")
+            return true
+        }
+        val session = sessionDao.getSession() ?: return false
+        startBackgroundAttempt(request.logicalServerId)
+        connectInternal(request, session, background = true)
+        return true
+    }
+
+    private fun startBackgroundAttempt(logicalServerId: String) {
+        connectionJob?.cancel()
+        verificationJob?.cancel()
+        failover = FailoverState()
+        currentServerId = logicalServerId
+        updateVpnState(VpnState.CONNECTING)
+        _isConnecting.value = true
+    }
+
+    /**
+     * The configuration never reached the VPN service. The state used to stay on CONNECTING
+     * forever here, and every later reconnect was skipped as "already connecting".
+     */
+    private fun markConnectFailed() {
+        _isConnecting.value = false
+        _rawTunnelState.value = VpnTunnelState.DOWN
+        _tunnelState.value = VpnTunnelState.DOWN
+        updateVpnState(VpnState.DISCONNECTED)
+        connectedServerState.setConnectedServer(null)
+        currentServerId = null
     }
 
     private fun normalizeIpv4Address(address: String): String? = runCatching {
@@ -686,23 +970,27 @@ class AmneziaVpnManager @Inject constructor(
             ?.hostAddress
     }.getOrNull()
 
+    /**
+     * Builds the configuration for [request] and hands it to the VPN service.
+     *
+     * @param background true for attempts nobody is waiting on (failover, service requests): a
+     *   failure then leaves the state alone because the service is still retrying on its own.
+     */
     private suspend fun connectInternal(
-        logicalServerId: String,
-        server: PhysicalServer,
+        request: LastConnectionRequest,
         session: SessionEntity,
-        overridePort: Int? = null,
-        overrideObfuscation: Boolean? = null,
-        obfuscationParams: ObfuscationParams? = null,
-        forceFallback: Boolean = false
+        forceFallback: Boolean = false,
+        background: Boolean = false
     ): Result<Unit> = withContext(dispatcherProvider.io()) {
+        val logicalServerId = request.logicalServerId
+        val server = request.server
+        val overridePort = request.overridePort
+        val overrideObfuscation = request.overrideObfuscation
+        val obfuscationParams = request.obfuscationParams
         try {
-            lastConnectionRequest = LastConnectionRequest(
-                logicalServerId = logicalServerId,
-                server = server,
-                overridePort = overridePort,
-                overrideObfuscation = overrideObfuscation,
-                obfuscationParams = obfuscationParams
-            )
+            // Pick the port once per attempt so a failover knows which endpoint failed.
+            val attemptPort = request.port.takeIf { it != 0 } ?: resolvePort(overridePort)
+            lastConnectionRequest = request.copy(port = attemptPort)
 
             val serverLogInfo = "${server.id} (Domain: ${server.domain}, LogicalID: $logicalServerId)"
             ProtonLogger.i(TAG, "Initiating connection to server: $serverLogInfo")
@@ -851,13 +1139,10 @@ class AmneziaVpnManager @Inject constructor(
                 }
             }
 
-            val selectedPort = overridePort?.takeIf { it != 0 } ?: settingsManager.vpnPort.first().let { port ->
-                if (port == 0) {
-                    val p = listOf(443, 123, 1194, 51820).random()
-                    ProtonLogger.d(TAG, "Auto-port selected: $p")
-                    p
-                } else port
-            }
+            // "Automatic" used to draw a random port on every connect, so whether a port blocked
+            // by the network was hit was luck. Now the last working port goes first and the
+            // failover walks through the rest.
+            val selectedPort = attemptPort
             val isObfuscationEnabled = !proxyChainEnabled &&
                 (overrideObfuscation ?: settingsManager.obfuscationEnabled.first())
 
@@ -962,23 +1247,17 @@ class AmneziaVpnManager @Inject constructor(
             // Sentry and expose it to the dashboard as a warning instead of reporting a crash.
             ProtonLogger.w(TAG, "VPN connection blocked: ${e.message}")
             _connectionWarning.value = e.warning
-            _isConnecting.value = false
-            _tunnelState.value = VpnTunnelState.DOWN
-            updateVpnState(VpnState.DISCONNECTED)
-            connectedServerState.setConnectedServer(null)
-            currentServerId = null
+            if (!background) markConnectFailed()
             Result.failure(e)
         } catch (e: Exception) {
             ProtonLogger.e(TAG, "Failed to connect to VPN", e)
-            ProtonLogger.addSentryBreadcrumb(TAG, "VPN Connection Failed: ${e.message}", "ERROR", "vpn.error")
 
             // Track connection failure
             ProtonLogger.recordCount("vpn_connection_failure", 1.0)
 
-            _isConnecting.value = false
-            _tunnelState.value = VpnTunnelState.DOWN
-            connectedServerState.setConnectedServer(null)
-            currentServerId = null
+            // A background attempt runs next to a service that keeps retrying the previous
+            // tunnel, so its failure must not flip the UI to "disconnected".
+            if (!background) markConnectFailed()
             Result.failure(e)
         }
     }
@@ -991,7 +1270,8 @@ class AmneziaVpnManager @Inject constructor(
         overrideObfuscation: Boolean? = null,
         obfuscationParams: ObfuscationParams? = null,
         logicalServer: LogicalServer? = null,
-        forceFallback: Boolean = false
+        forceFallback: Boolean = false,
+        failoverScope: ServerScope? = null
     ) {
         // Immediate UI update
         if (logicalServer != null) {
@@ -1005,9 +1285,11 @@ class AmneziaVpnManager @Inject constructor(
                 return@launch
             }
 
-            // Only skip if we're already connecting (to avoid multiple rapid clicks)
-            if (_isConnecting.value) {
-                ProtonLogger.d(TAG, "Reconnect skipped: Already in a connecting state.")
+            // Ignore a second tap on the same server while its reconnect is being prepared. Any
+            // other request replaces the running one: "already connecting" used to block every
+            // reconnect for as long as a stuck attempt claimed to be connecting.
+            if (isReconnecting && connectionJob?.isActive == true && currentServerId == logicalServerId) {
+                ProtonLogger.d(TAG, "Reconnect to $logicalServerId is already in progress")
                 return@launch
             }
 
@@ -1015,6 +1297,7 @@ class AmneziaVpnManager @Inject constructor(
             verificationJob?.cancel()
 
             _connectionWarning.value = null
+            failover = FailoverState()
             updateVpnState(VpnState.CONNECTING)
             _isConnecting.value = true
 
@@ -1038,7 +1321,13 @@ class AmneziaVpnManager @Inject constructor(
                     } catch (_: Exception) {
                     }
                     delay(500.milliseconds)
-                    connectInternal(logicalServerId, server, session, overridePort, overrideObfuscation, obfuscationParams, forceFallback)
+                    connectInternal(
+                        LastConnectionRequest(
+                            logicalServerId, server, overridePort, overrideObfuscation, obfuscationParams, failoverScope
+                        ),
+                        session,
+                        forceFallback = forceFallback
+                    )
                 } finally {
                     isReconnecting = false
                 }
@@ -1068,11 +1357,9 @@ class AmneziaVpnManager @Inject constructor(
             ProtonLogger.w(TAG, "IP rotation skipped: no eligible alternative server")
             return
         }
-        val physicalServer = candidate.servers
-            .filter { it.status == 1 && !it.wgPublicKey.isNullOrBlank() }
-            .minByOrNull { it.load }
-            ?: return
+        val physicalServer = ServerSelector.pickPhysical(candidate) ?: return
         val previous = lastConnectionRequest
+        val keepCountry = settingsManager.ipRotationKeepCountry.first()
         ProtonLogger.action(TAG, "Rotating IP from ${current.id} to ${candidate.id}")
         reconnect(
             logicalServerId = candidate.id,
@@ -1082,6 +1369,7 @@ class AmneziaVpnManager @Inject constructor(
             overrideObfuscation = previous?.overrideObfuscation,
             obfuscationParams = previous?.obfuscationParams,
             logicalServer = candidate,
+            failoverScope = if (keepCountry) ServerScope.Country(candidate.exitCountry) else ServerScope.AnyServer,
         )
     }
 
@@ -1104,7 +1392,8 @@ class AmneziaVpnManager @Inject constructor(
                 overridePort = request.overridePort,
                 overrideObfuscation = request.overrideObfuscation,
                 obfuscationParams = request.obfuscationParams,
-                logicalServer = connectedServerState.connectedServer.value
+                logicalServer = connectedServerState.connectedServer.value,
+                failoverScope = request.failoverScope
             )
         }
     }
@@ -1186,14 +1475,14 @@ class AmneziaVpnManager @Inject constructor(
                     
                     // 2. Then wait for the tunnel state to be UP
                     ProtonLogger.d(TAG, "Connect & Go: VPN attempt finished, waiting for UP state...")
-                    _tunnelState.first { it == VpnTunnelState.UP }
+                    _vpnState.first { it == VpnState.CONNECTED }
                 }
 
                 // 3. Extra delay to ensure routing and DNS are fully established and browser can reach the site
                 ProtonLogger.d(TAG, "Connect & Go: Tunnel is UP, waiting for routing stabilization...")
                 delay(3000.milliseconds)
 
-                if (_tunnelState.value == VpnTunnelState.UP) {
+                if (_vpnState.value == VpnState.CONNECTED) {
                     val intent = Intent(Intent.ACTION_VIEW, targetUrl.toUri()).apply {
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     }

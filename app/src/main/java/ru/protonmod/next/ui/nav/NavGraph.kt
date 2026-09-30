@@ -35,7 +35,6 @@ import ru.protonmod.next.ui.screens.LoginUiState
 import ru.protonmod.next.ui.screens.profiles.*
 import ru.protonmod.next.ui.screens.settings.*
 import ru.protonmod.next.ui.screens.netshield.NetShieldSettingsScreen
-import ru.protonmod.next.ui.screens.ai.AiSettingsScreen
 
 sealed class Screen(val route: String) {
     data object Home : Screen("home")
@@ -43,7 +42,6 @@ sealed class Screen(val route: String) {
     data object CountrySpoofing : Screen("country_spoofing")
     data object ByeDpiTest : Screen("byedpi_test")
     data object Settings : Screen("settings")
-    data object AiSettings : Screen("ai_settings")
     data object NetShield : Screen("netshield")
     data object ConnectionVerification : Screen("connection_verification")
     data object IpRotation : Screen("ip_rotation")
@@ -148,9 +146,6 @@ fun NavGraphBuilder.appNavGraph(
             onNavigateToNetShield = {
                 navController.navigate(Screen.NetShield.route)
             },
-            onNavigateToAiSettings = {
-                navController.navigate(Screen.AiSettings.route)
-            },
             onNavigateToConnectionVerification = {
                 navController.navigate(Screen.ConnectionVerification.route)
             },
@@ -162,13 +157,6 @@ fun NavGraphBuilder.appNavGraph(
 
     composable(Screen.NetShield.route) {
         NetShieldSettingsScreen(onBack = { navController.popBackStack() })
-    }
-
-    composable(Screen.AiSettings.route) {
-        AiSettingsScreen(
-            onBack = { navController.popBackStack() },
-            onNavigateToApiBypass = { navController.navigate(Screen.ApiBypass.route) }
-        )
     }
 
     composable(Screen.ConnectionVerification.route) {

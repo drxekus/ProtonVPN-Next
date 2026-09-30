@@ -25,6 +25,8 @@ import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.net.VpnService
 import android.os.Build
+import android.os.Handler
+import android.os.HandlerThread
 import android.os.ParcelFileDescriptor
 import android.os.Process
 import android.system.OsConstants
@@ -49,9 +51,14 @@ import ru.protonmod.next.utils.ProtonLogger
 import java.net.Inet6Address
 import java.net.InetSocketAddress
 import java.net.NetworkInterface
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import io.nekohasekai.libbox.NetworkInterface as BoxNetworkInterface
 
 private const val TAG = "AwgBoxPlatform"
+private const val INTERFACE_INDEX_ATTEMPTS = 10
+private const val INTERFACE_INDEX_RETRY_MS = 100L
+private const val FIRST_NETWORK_WAIT_MS = 2_000L
 
 /** Failure message used when the OS no longer grants this app the VPN consent. */
 internal const val VPN_PERMISSION_REVOKED = "VPN permission was revoked"
@@ -84,6 +91,18 @@ class AwgBoxPlatform(
 ) : PlatformInterface {
     private val connectivity = service.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    @Volatile private var defaultNetwork: Network? = null
+    @Volatile private var lastPublishedInterface: PublishedInterface? = null
+    /** Network callbacks call into the engine and may block briefly; keep them off the main thread. */
+    private val monitorThread = HandlerThread("awgbox-network-monitor").apply { start() }
+    private val monitorHandler = Handler(monitorThread.looper)
+
+    /** Stops the monitor thread; the platform must not be used afterwards. */
+    fun release() {
+        networkCallback?.let { runCatching { connectivity.unregisterNetworkCallback(it) } }
+        networkCallback = null
+        monitorThread.quitSafely()
+    }
     @Volatile private var splitTunnelingEnabled = false
     @Volatile private var splitTunnelingMode = "exclude"
     @Volatile private var splitTunnelingApps: Set<String> = emptySet()
@@ -185,26 +204,95 @@ class AwgBoxPlatform(
         }
     }
 
+    /**
+     * Tells the engine which physical interface carries traffic, following only the network
+     * Android would pick for us, as the official sing-box client does.
+     *
+     * The previous version listened to every network with internet access and published
+     * whichever one reported a change last. With Wi-Fi and mobile data both up, a signal-strength
+     * update on the cellular side re-published the cellular interface as the default, and a cell
+     * handover was only reported once Android had no network at all, which it never has while our
+     * VPN is up. The engine therefore kept writing to a stale interface after a handover.
+     */
     override fun startDefaultInterfaceMonitor(listener: InterfaceUpdateListener) {
         closeDefaultInterfaceMonitor(listener)
+        // NetworkRequest carries NET_CAPABILITY_NOT_VPN by default, so our own TUN never matches.
+        val request = NetworkRequest.Builder()
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_RESTRICTED)
+            .build()
+        val firstNetwork = CountDownLatch(1)
         val callback = object : ConnectivityManager.NetworkCallback() {
-            override fun onAvailable(network: Network) = publishDefaultNetwork(listener, network)
-            override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) = publishDefaultNetwork(listener, network)
+            override fun onAvailable(network: Network) {
+                defaultNetwork = network
+                publishDefaultNetwork(listener, network)
+                firstNetwork.countDown()
+            }
+
+            override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
+                if (network == defaultNetwork) publishDefaultNetwork(listener, network)
+            }
+
+            override fun onLinkPropertiesChanged(network: Network, linkProperties: android.net.LinkProperties) {
+                if (network == defaultNetwork) publishDefaultNetwork(listener, network)
+            }
+
             override fun onLost(network: Network) {
-                if (connectivity.activeNetwork == null) listener.updateDefaultInterface("", -1, false, false)
+                if (network != defaultNetwork) return
+                defaultNetwork = null
+                lastPublishedInterface = null
+                VpnEventLog.log("net: default network lost")
+                listener.updateDefaultInterface("", -1, false, false)
             }
         }
         networkCallback = callback
-        connectivity.registerNetworkCallback(
-            NetworkRequest.Builder().addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET).build(),
-            callback
-        )
-        connectivity.activeNetwork?.let { publishDefaultNetwork(listener, it) }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            connectivity.registerBestMatchingNetworkCallback(request, callback, monitorHandler)
+        } else {
+            // Before Android 12 a request (not a listen) is what tracks the best network.
+            connectivity.requestNetwork(request, callback, monitorHandler)
+        }
+        // libbox starts its outbounds as soon as this returns, but the callback above is
+        // delivered asynchronously. Without a default interface at that moment the AWG endpoint
+        // fails with "no available network interface", so publish the current physical network
+        // now, or wait briefly for the first callback when none is known yet.
+        val current = currentPhysicalNetwork()
+        if (current != null) {
+            defaultNetwork = current
+            publishDefaultNetwork(listener, current)
+        } else {
+            firstNetwork.await(FIRST_NETWORK_WAIT_MS, TimeUnit.MILLISECONDS)
+        }
+    }
+
+    /** The network Android routes this app through when our tunnel is down, or the best physical one. */
+    private fun currentPhysicalNetwork(): Network? {
+        fun usable(network: Network): NetworkCapabilities? =
+            connectivity.getNetworkCapabilities(network)?.takeIf { capabilities ->
+                !capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN) &&
+                    capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            }
+        connectivity.activeNetwork?.takeIf { usable(it) != null }?.let { return it }
+        @Suppress("DEPRECATION")
+        return connectivity.allNetworks
+            .mapNotNull { network -> usable(network)?.let { network to it } }
+            .maxByOrNull { (_, capabilities) ->
+                val validated = if (capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) 10 else 0
+                val transport = when {
+                    capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> 3
+                    capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> 2
+                    else -> 1
+                }
+                validated + transport
+            }
+            ?.first
     }
 
     override fun closeDefaultInterfaceMonitor(listener: InterfaceUpdateListener) {
         networkCallback?.let { runCatching { connectivity.unregisterNetworkCallback(it) } }
         networkCallback = null
+        defaultNetwork = null
+        lastPublishedInterface = null
     }
 
     private fun publishDefaultNetwork(listener: InterfaceUpdateListener, network: Network) {
@@ -214,14 +302,51 @@ class AwgBoxPlatform(
         if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) return
         val properties = connectivity.getLinkProperties(network) ?: return
         val name = properties.interfaceName ?: return
-        val index = runCatching { NetworkInterface.getByName(name)?.index ?: -1 }.getOrDefault(-1)
-        listener.updateDefaultInterface(
-            name,
-            index,
-            capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) == false,
-            false
-        )
+        // A freshly created interface can take a moment to appear in the kernel's list.
+        var index = -1
+        for (attempt in 0 until INTERFACE_INDEX_ATTEMPTS) {
+            index = runCatching { NetworkInterface.getByName(name)?.index ?: -1 }.getOrDefault(-1)
+            if (index != -1) break
+            Thread.sleep(INTERFACE_INDEX_RETRY_MS)
+        }
+        if (index == -1) {
+            ProtonLogger.w(TAG, "Interface $name has no index yet; not publishing it")
+            return
+        }
+        val expensive = !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
+        val ipv4 = properties.linkAddresses
+            .mapNotNull { (it.address as? java.net.Inet4Address)?.hostAddress }
+            .sorted()
+        val published = PublishedInterface(name, index, expensive, network.networkHandle, ipv4)
+        val previous = lastPublishedInterface
+        // Capability callbacks fire on every signal-strength change; only real changes matter.
+        if (published == previous) return
+        lastPublishedInterface = published
+        if (previous != null && previous.name == name && previous.index == index &&
+            (previous.networkHandle != published.networkHandle || previous.ipv4 != ipv4)
+        ) {
+            // A cell handover often keeps the interface name and index but brings a new network
+            // or address. libbox only reacts to a changed name or index, so the tunnel kept its
+            // stale socket until WireGuard's own timers noticed, which showed up as "connected"
+            // with traffic hanging for a while. Announcing the gap makes libbox reset its
+            // connections and rebind the AWG socket right away.
+            ProtonLogger.i(TAG, "Network path changed on $name; resetting the tunnel's socket")
+            VpnEventLog.log("net: path changed on $name (new network or address)")
+            listener.updateDefaultInterface("", -1, false, false)
+        } else {
+            ProtonLogger.i(TAG, "Default interface is now $name (index $index)")
+            VpnEventLog.log("net: default interface $name (index $index, metered=$expensive)")
+        }
+        listener.updateDefaultInterface(name, index, expensive, false)
     }
+
+    private data class PublishedInterface(
+        val name: String,
+        val index: Int,
+        val expensive: Boolean,
+        val networkHandle: Long,
+        val ipv4: List<String>,
+    )
 
     override fun getInterfaces(): NetworkInterfaceIterator {
         val result = mutableListOf<BoxNetworkInterface>()

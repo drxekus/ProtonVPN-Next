@@ -1,0 +1,44 @@
+diff --git a/protocol/awg/endpoint.go b/protocol/awg/endpoint.go
+index 6fcbc2c..b09f62b 100644
+--- a/protocol/awg/endpoint.go
++++ b/protocol/awg/endpoint.go
+@@ -451,3 +451,14 @@ func (e *Endpoint) ListenPacketWithDestination(ctx context.Context, destination
+ 	}
+ 	return packetConn, netip.Addr{}, nil
+ }
++
++// InterfaceUpdated is called by the network manager whenever the default interface changes.
++// The upstream WireGuard endpoint rebinds its socket here; the AWG endpoint did not, so its
++// socket stayed on the previous network after a handover.
++func (e *Endpoint) InterfaceUpdated(ctx context.Context) {
++	go func() {
++		if err := e.Device.BindUpdate(); err != nil {
++			e.logger.ErrorContext(ctx, E.Cause(err, "update bind"))
++		}
++	}()
++}
+diff --git a/transport/awg/device.go b/transport/awg/device.go
+index 6e60e72..bfc8b5e 100644
+--- a/transport/awg/device.go
++++ b/transport/awg/device.go
+@@ -173,6 +173,20 @@ func (d *Device) Close() error {
+ 	return nil
+ }
+ 
++// BindUpdate re-creates the UDP socket after the default network changed and immediately
++// sends a keepalive, so the server learns the new address at once instead of after
++// WireGuard's own timers (15-25 s of stalled traffic after every cell handover).
++func (d *Device) BindUpdate() error {
++	if !d.started.Load() || d.awgDevice == nil {
++		return nil
++	}
++	if err := d.awgDevice.BindUpdate(); err != nil {
++		return err
++	}
++	d.awgDevice.SendKeepalivesToPeersWithCurrentKeypair()
++	return nil
++}
++
+ func (d *Device) Started() bool {
+ 	return d.started.Load()
+ }

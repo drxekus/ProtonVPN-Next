@@ -1047,6 +1047,8 @@ fun ConnectionWarningBanner(
             stringResource(R.string.ipv6_blocked_title) to stringResource(R.string.ipv6_blocked_desc)
         AmneziaVpnManager.ConnectionWarning.InvalidProxyConfiguration ->
             stringResource(R.string.proxy_config_invalid_title) to stringResource(R.string.proxy_config_invalid_desc)
+        AmneziaVpnManager.ConnectionWarning.ServerNotResponding ->
+            stringResource(R.string.server_not_responding_title) to stringResource(R.string.server_not_responding_desc)
     }
 
     Surface(
@@ -1262,7 +1264,7 @@ private fun CustomPauseContent(
         SmoothOutlinedTextField(
             value = timeInput,
             onValueChange = { if (it.all { char -> char.isDigit() }) timeInput = it },
-            label = { Text(stringResource(R.string.label_speed)) }, // Reuse existing label or add new
+            label = { Text(stringResource(R.string.pause_custom_amount)) },
             modifier = Modifier.fillMaxWidth(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             colors = OutlinedTextFieldDefaults.colors(

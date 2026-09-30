@@ -82,7 +82,6 @@ fun SettingsScreen(
     onNavigateToNetShield: (() -> Unit)? = null,
     onNavigateToConnectionVerification: (() -> Unit)? = null,
     onNavigateToIpRotation: (() -> Unit)? = null,
-    onNavigateToAiSettings: (() -> Unit)? = null,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val colors = ProtonNextTheme.colors
@@ -139,7 +138,6 @@ fun SettingsScreen(
                 onNavigateToCertSettings = onNavigateToCertSettings,
                 onNavigateToNetShield = onNavigateToNetShield,
                 onNavigateToConnectionVerification = onNavigateToConnectionVerification,
-                onNavigateToAiSettings = onNavigateToAiSettings,
                 onNavigateToIpRotation = onNavigateToIpRotation,
                 onOtaFrequencyChange = viewModel::setOtaUpdateFrequency,
                 onCheckForUpdates = viewModel::checkForUpdates,
@@ -179,7 +177,6 @@ fun SettingsContent(
     onNavigateToCertSettings: (() -> Unit)? = null,
     onNavigateToNetShield: (() -> Unit)? = null,
     onNavigateToConnectionVerification: (() -> Unit)? = null,
-    onNavigateToAiSettings: (() -> Unit)? = null,
     onNavigateToIpRotation: (() -> Unit)? = null
 ) {
     LazyColumn(
@@ -259,11 +256,6 @@ fun SettingsContent(
                             onNotificationsChange = onNotificationsChange
                         )
 
-                        AiSettingsSection(
-                            state = state,
-                            onNavigateToAiSettings = onNavigateToAiSettings
-                        )
-
                         if (!state.isPrivacyBuild) {
                             UpdateSettingsSection(
                                 state = state,
@@ -331,14 +323,6 @@ fun SettingsContent(
                     onNavigateToErrorReporting = onNavigateToErrorReporting,
                     onNavigateToConnectionVerification = onNavigateToConnectionVerification,
                     onAllowLanChange = onAllowLanChange
-                )
-            }
-
-            item(contentType = "AiSettings") {
-                AiSettingsSection(
-                    state = state,
-                    modifier = contentModifier,
-                    onNavigateToAiSettings = onNavigateToAiSettings
                 )
             }
 
@@ -469,7 +453,8 @@ private fun WidgetSettingsSection(modifier: Modifier = Modifier) {
                 onClick = {
                     val myProvider = ComponentName(context, VpnWidgetProvider::class.java)
                     appWidgetManager.requestPinAppWidget(myProvider, null, null)
-                }
+                },
+                info = stringResource(R.string.settings_widget_info)
             )
         }
     }
@@ -492,7 +477,8 @@ private fun ConnectionSettingsSection(
             icon = ProtonIcons.Servers,
             title = stringResource(R.string.settings_protocol),
             subtitle = "AmneziaWG",
-            onClick = { onNavigateToProtocol?.invoke() }
+            onClick = { onNavigateToProtocol?.invoke() },
+            info = stringResource(R.string.settings_protocol_info)
         )
 
         SettingToggleRow(
@@ -500,7 +486,8 @@ private fun ConnectionSettingsSection(
             title = stringResource(R.string.settings_auto_connect),
             subtitle = stringResource(R.string.settings_auto_connect_desc),
             checked = state.autoConnectEnabled,
-            onCheckedChange = onAutoConnectChange
+            onCheckedChange = onAutoConnectChange,
+            info = stringResource(R.string.settings_auto_connect_info)
         )
 
         SettingToggleRow(
@@ -508,35 +495,40 @@ private fun ConnectionSettingsSection(
             title = stringResource(R.string.settings_reconnect_hint),
             subtitle = stringResource(R.string.settings_reconnect_hint_desc),
             checked = state.reconnectHintEnabled,
-            onCheckedChange = onReconnectHintChange
+            onCheckedChange = onReconnectHintChange,
+            info = stringResource(R.string.settings_reconnect_hint_info)
         )
 
         SettingRowWithIcon(
             icon = ProtonIcons.ArrowsRotate,
             title = stringResource(R.string.ip_rotation_title),
             subtitle = stringResource(R.string.ip_rotation_settings_subtitle),
-            onClick = onNavigateToIpRotation
+            onClick = onNavigateToIpRotation,
+            info = stringResource(R.string.settings_ip_rotation_info)
         )
 
         SettingRowWithIcon(
             icon = ProtonIcons.Cloud,
             title = stringResource(R.string.settings_api_bypass),
             subtitle = if (state.apiBypassEnabled) stringResource(R.string.settings_on) else stringResource(R.string.settings_off),
-            onClick = { onNavigateToApiBypass?.invoke() }
+            onClick = { onNavigateToApiBypass?.invoke() },
+            info = stringResource(R.string.settings_api_bypass_info)
         )
 
         SettingRowWithIcon(
             icon = ProtonIcons.ListNumbers,
             title = stringResource(R.string.settings_port),
             subtitle = if (state.vpnPort == 0) stringResource(R.string.settings_port_auto) else state.vpnPort.toString(),
-            onClick = { onNavigateToPortSelection?.invoke(state.vpnPort) }
+            onClick = { onNavigateToPortSelection?.invoke(state.vpnPort) },
+            info = stringResource(R.string.settings_port_info)
         )
 
         SettingRowWithIcon(
             icon = ProtonIcons.Shield,
             title = stringResource(R.string.settings_cert_management),
             subtitle = stringResource(R.string.settings_cert_management_desc),
-            onClick = { onNavigateToCertSettings?.invoke() }
+            onClick = { onNavigateToCertSettings?.invoke() },
+            info = stringResource(R.string.settings_cert_management_info)
         )
     }
 }
@@ -570,7 +562,8 @@ private fun CustomizationSettingsSection(
             title = stringResource(R.string.settings_app_theme),
             subtitle = currentThemeName,
             icon = ProtonIcons.CircleHalfFilled,
-            onClick = { onNavigateToThemeSelection?.invoke() }
+            onClick = { onNavigateToThemeSelection?.invoke() },
+            info = stringResource(R.string.settings_app_theme_info)
         )
 
         val currentLoadModeName = when (state.serverLoadDisplayMode) {
@@ -584,7 +577,8 @@ private fun CustomizationSettingsSection(
             title = stringResource(R.string.settings_load_display_mode),
             subtitle = currentLoadModeName,
             icon = ProtonIcons.ChartLine,
-            onClick = { onNavigateToLoadDisplayMode?.invoke() }
+            onClick = { onNavigateToLoadDisplayMode?.invoke() },
+            info = stringResource(R.string.settings_load_display_mode_info)
         )
     }
 }
@@ -610,28 +604,32 @@ private fun PrivacySettingsSection(
             icon = ProtonIcons.ShieldFilled,
             title = stringResource(R.string.verification_title),
             subtitle = stringResource(R.string.verification_settings_subtitle),
-            onClick = onNavigateToConnectionVerification
+            onClick = onNavigateToConnectionVerification,
+            info = stringResource(R.string.settings_verification_info)
         )
 
         SettingRowWithIcon(
             icon = ProtonIcons.Servers,
             title = stringResource(R.string.settings_custom_dns),
             subtitle = currentDnsSubtitle,
-            onClick = onNavigateToCustomDns
+            onClick = onNavigateToCustomDns,
+            info = stringResource(R.string.settings_custom_dns_info)
         )
 
         SettingRowWithIcon(
             icon = ProtonIcons.Earth,
             title = stringResource(R.string.settings_country_spoofing_title),
             subtitle = if (state.spoofCountryEnabled) stringResource(R.string.settings_on) else stringResource(R.string.settings_off),
-            onClick = onNavigateToCountrySpoofing
+            onClick = onNavigateToCountrySpoofing,
+            info = stringResource(R.string.settings_country_spoofing_info)
         )
 
         SettingRowWithIcon(
             iconRes = R.drawable.ic_kill_switch,
             title = stringResource(R.string.settings_kill_switch),
             subtitle = stringResource(R.string.settings_kill_switch_desc),
-            onClick = onNavigateToKillSwitch
+            onClick = onNavigateToKillSwitch,
+            info = stringResource(R.string.settings_kill_switch_info)
         )
 
         if (BuildConfig.SENTRY_ENABLED) {
@@ -639,7 +637,8 @@ private fun PrivacySettingsSection(
                 icon = ProtonIcons.Bug,
                 title = stringResource(R.string.settings_error_reporting),
                 subtitle = stringResource(R.string.settings_error_reporting_desc),
-                onClick = onNavigateToErrorReporting
+                onClick = onNavigateToErrorReporting,
+                info = stringResource(R.string.settings_error_reporting_info)
             )
         }
 
@@ -648,7 +647,8 @@ private fun PrivacySettingsSection(
             title = stringResource(R.string.settings_notifications),
             subtitle = stringResource(R.string.settings_notifications_desc),
             checked = state.notificationsEnabled,
-            onCheckedChange = onNotificationsChange
+            onCheckedChange = onNotificationsChange,
+            info = stringResource(R.string.settings_notifications_info)
         )
 
         SettingToggleRow(
@@ -656,23 +656,8 @@ private fun PrivacySettingsSection(
             title = stringResource(R.string.settings_allow_lan),
             subtitle = stringResource(R.string.settings_allow_lan_desc),
             checked = state.allowLanEnabled,
-            onCheckedChange = onAllowLanChange
-        )
-    }
-}
-
-@Composable
-private fun AiSettingsSection(
-    state: SettingsUiState,
-    modifier: Modifier = Modifier,
-    onNavigateToAiSettings: (() -> Unit)? = null
-) {
-    SettingsCategory(modifier = modifier, title = stringResource(R.string.settings_ai)) {
-        SettingRowWithIcon(
-            icon = ProtonIcons.MagicProtonWand,
-            title = stringResource(R.string.ai_settings_title),
-            subtitle = if (state.aiEnabled) stringResource(R.string.settings_on) else stringResource(R.string.settings_off),
-            onClick = { onNavigateToAiSettings?.invoke() }
+            onCheckedChange = onAllowLanChange,
+            info = stringResource(R.string.settings_allow_lan_info)
         )
     }
 }
@@ -699,7 +684,8 @@ private fun AboutSettingsSection(
             icon = ProtonIcons.Storage,
             title = stringResource(R.string.backup_title),
             subtitle = stringResource(R.string.backup_export_desc),
-            onClick = onNavigateToBackup
+            onClick = onNavigateToBackup,
+            info = stringResource(R.string.settings_backup_info)
         )
 
         if (BuildConfig.DEBUG) {
@@ -714,7 +700,7 @@ private fun AboutSettingsSection(
         SettingRowWithIcon(
             icon = ProtonIcons.ArrowOutFromRectangle,
             title = stringResource(R.string.btn_logout),
-            subtitle = stringResource(R.string.desc_toggle_connection),
+            subtitle = stringResource(R.string.settings_logout_desc),
             onClick = { showLogoutDialog = true },
             titleColor = ProtonNextTheme.colors.notificationError
         )
@@ -774,7 +760,8 @@ private fun FeatureCategory(
                 else R.drawable.feature_splittunneling_off,
             iconTint = false,
             isActive = state.splitTunnelingEnabled,
-            onClick = { onNavigateToSplitTunnelingMain?.invoke() }
+            onClick = { onNavigateToSplitTunnelingMain?.invoke() },
+            info = stringResource(R.string.settings_split_tunneling_info)
         )
 
         if (isTablet) Spacer(modifier = Modifier.width(16.dp))
@@ -788,7 +775,8 @@ private fun FeatureCategory(
                 else R.drawable.feature_netshield_off,
             iconTint = false,
             isActive = state.netShieldEnabled,
-            onClick = { onNavigateToNetShield?.invoke() }
+            onClick = { onNavigateToNetShield?.invoke() },
+            info = stringResource(R.string.settings_netshield_info)
         )
     }
 }
@@ -849,7 +837,9 @@ fun FeatureTile(
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
     @DrawableRes iconRes: Int? = null,
-    iconTint: Boolean = true
+    iconTint: Boolean = true,
+    /** Longer explanation shown in a dialog behind an info icon; null hides the icon. */
+    info: String? = null
 ) {
     val colors = ProtonNextTheme.colors
     Box(
@@ -923,6 +913,16 @@ fun FeatureTile(
                     textAlign = TextAlign.Center,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            if (info != null) {
+                SettingInfoButton(
+                    title = title,
+                    info = info,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(4.dp)
                 )
             }
         }

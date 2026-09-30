@@ -26,8 +26,9 @@ internal object IpRotationSelector {
             .filter { it.id != current.id }
             .filter { it.tier <= maxTier }
             .filter { !keepCountry || it.exitCountry == current.exitCountry }
-            .filter { logical -> logical.servers.any { it.status == 1 && !it.wgPublicKey.isNullOrBlank() } }
-            .sortedBy { it.averageLoad }
+            .filter(ServerSelector::isUsable)
+            // A load of 0 means Proton reported none, which usually means the server is not serving.
+            .sortedWith(compareBy<LogicalServer>({ it.averageLoad <= 0 }, { it.averageLoad }))
             .take(CANDIDATE_POOL_SIZE)
             .toList()
         return candidates.randomOrNull(random)

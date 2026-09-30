@@ -22,8 +22,11 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import ru.protonmod.next.utils.ProtonLogger
+import kotlinx.coroutines.flow.first
+import java.net.HttpURLConnection
 import java.net.Inet4Address
 import java.net.InetSocketAddress
+import java.net.URL
 import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -33,13 +36,11 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * Tracks Android VPN networks independently from the default network.
+ * Tracks the physical networks and our own VPN network independently from the default network.
  *
- * Android's NET_CAPABILITY_VALIDATED is driven by system captive-portal probes and can arrive many
- * seconds after applications already exchange traffic through a working tunnel. A verification
- * cycle therefore accepts either the system capability or a successful TCP probe explicitly bound
- * to the newly-created VPN network. Binding the socket to that Network ensures a direct underlying
- * connection cannot produce a false positive.
+ * A verification cycle proves the tunnel carries traffic with a real HTTP exchange bound to the
+ * newly created VPN network. A bare TCP connect is not enough: the TUN stack completes the TCP
+ * handshake locally, so it succeeded even when nothing ever came back from the VPN server.
  */
 @Singleton
 class VpnNetworkMonitor @Inject constructor(
@@ -95,7 +96,12 @@ class VpnNetworkMonitor @Inject constructor(
 
     init {
         try {
-            val request = NetworkRequest.Builder().build()
+            // A default NetworkRequest carries NET_CAPABILITY_NOT_VPN, which hid our own tunnel
+            // from this monitor: every verification cycle waited for a network it could never
+            // see, timed out and then reported the tunnel as working.
+            val request = NetworkRequest.Builder()
+                .removeCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
+                .build()
             connectivityManager.registerNetworkCallback(request, networkCallback)
         } catch (error: Exception) {
             ProtonLogger.e(TAG, "Failed to register network callback", error)
@@ -104,6 +110,30 @@ class VpnNetworkMonitor @Inject constructor(
 
     /** Returns a snapshot of all currently active networks. */
     fun getTrackedNetworks(): Collection<TrackedNetwork> = snapshot.value.networks.values
+
+    /**
+     * True when a physical (non-VPN) network that claims internet access is present. With nothing
+     * tracked yet (the callback has not fired) the answer is optimistic, so a start is attempted.
+     */
+    fun hasUsableUnderlyingNetwork(): Boolean {
+        val networks = getTrackedNetworks()
+        if (networks.isEmpty()) return true
+        return networks.any(::isUsableUnderlying)
+    }
+
+    /** Suspends until a physical network with internet access is available. */
+    suspend fun awaitUsableUnderlyingNetwork() {
+        snapshot.first { current ->
+            current.networks.isEmpty() || current.networks.values.any(::isUsableUnderlying)
+        }
+    }
+
+    private fun isUsableUnderlying(tracked: TrackedNetwork): Boolean {
+        val capabilities = tracked.capabilities ?: return false
+        return !capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN) &&
+            capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+            capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
+    }
 
     /**
      * Resolves and validates everything that would otherwise need DNS after the TUN is created.
@@ -167,11 +197,10 @@ class VpnNetworkMonitor @Inject constructor(
     }
 
     /**
-     * Waits until the cycle's new VPN network is actually usable.
+     * Waits until the cycle's new VPN network carries a real HTTP exchange end to end.
      *
-     * Android validation wins immediately when available. Otherwise a short TCP connection is made
-     * through the VPN Network itself. This reflects real tunnel usability instead of waiting for
-     * Android's delayed captive-portal validation. Returns false on timeout; cancellation propagates.
+     * Android's VALIDATED flag is deliberately not trusted here: a VPN network can report it while
+     * the tunnel behind it is dead. Returns false on timeout; cancellation propagates.
      */
     suspend fun awaitUsable(
         cycle: VerificationCycle,
@@ -179,33 +208,25 @@ class VpnNetworkMonitor @Inject constructor(
         retryDelay: Duration = DEFAULT_RETRY_DELAY
     ): Boolean = withTimeoutOrNull(timeout) {
         while (true) {
-            val candidate = snapshot.value.networks.entries.firstOrNull { (handle, _) ->
-                handle !in cycle.baselineHandles
+            val vpnNetworks = snapshot.value.networks.values.filter { tracked ->
+                tracked.capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
             }
+            // Prefer the network created for this cycle. The caller only probes once the service
+            // has seen the WireGuard handshake, so the tunnel exists by then; if the cycle began
+            // too late to tell old from new, the most recently created VPN network is the one.
+            val candidate = vpnNetworks.firstOrNull { it.network.networkHandle !in cycle.baselineHandles }
+                ?: vpnNetworks.maxByOrNull { it.network.networkHandle }
 
             if (candidate == null) {
                 delay(retryDelay)
                 continue
             }
 
-            val handle = candidate.key
-            val tracked = candidate.value
-            if (tracked.systemValidated) {
-                ProtonLogger.d(TAG, "VPN network system-validated for cycle ${cycle.id}")
+            if (probeVpnNetwork(candidate.network)) {
+                ProtonLogger.d(TAG, "VPN network passed an HTTP round trip for cycle ${cycle.id}")
                 return@withTimeoutOrNull true
             }
-
-            if (probeVpnNetwork(tracked.network)) {
-                ProtonLogger.d(TAG, "VPN network passed active traffic probe for cycle ${cycle.id}")
-                return@withTimeoutOrNull true
-            }
-
-            // The network may have disappeared or changed capabilities while the probe was running.
-            if (snapshot.value.networks[handle]?.systemValidated == true) {
-                ProtonLogger.d(TAG, "VPN network system-validated during probe for cycle ${cycle.id}")
-                return@withTimeoutOrNull true
-            }
-            delay(retryDelay)
+            delay(retryDelay.coerceAtLeast(MIN_PROBE_RETRY_DELAY))
         }
         @Suppress("UNREACHABLE_CODE")
         false
@@ -246,13 +267,25 @@ class VpnNetworkMonitor @Inject constructor(
         true
     }.getOrDefault(false)
 
+    /**
+     * Any HTTP status proves a full round trip through the tunnel: DNS inside the tunnel, the
+     * request out through the VPN server and the answer back. The targets only ever see the VPN
+     * exit address, never the real one.
+     */
     private suspend fun probeVpnNetwork(network: Network): Boolean = withContext(Dispatchers.IO) {
-        PROBE_TARGETS.any { target ->
+        HTTP_PROBE_URLS.any { url ->
             runCatching {
-                network.socketFactory.createSocket().use { socket ->
-                    socket.connect(InetSocketAddress(target, PROBE_PORT), PROBE_CONNECT_TIMEOUT_MS)
+                val connection = network.openConnection(URL(url)) as HttpURLConnection
+                try {
+                    connection.connectTimeout = PROBE_CONNECT_TIMEOUT_MS
+                    connection.readTimeout = PROBE_CONNECT_TIMEOUT_MS
+                    connection.instanceFollowRedirects = false
+                    connection.useCaches = false
+                    connection.setRequestProperty("Connection", "close")
+                    connection.responseCode in 100..599
+                } finally {
+                    connection.disconnect()
                 }
-                true
             }.getOrDefault(false)
         }
     }
@@ -293,9 +326,14 @@ class VpnNetworkMonitor @Inject constructor(
         val DEFAULT_TIMEOUT = 8.seconds
         val DEFAULT_RETRY_DELAY = 200.milliseconds
         const val PROBE_PORT = 443
-        const val PROBE_CONNECT_TIMEOUT_MS = 750
+        const val PROBE_CONNECT_TIMEOUT_MS = 4_000
         const val PREFLIGHT_CONNECT_TIMEOUT_MS = 1_500
         val UNDERLYING_TIMEOUT = 8.seconds
+        val MIN_PROBE_RETRY_DELAY = 500.milliseconds
         val PROBE_TARGETS = listOf("1.1.1.1", "8.8.8.8")
+        val HTTP_PROBE_URLS = listOf(
+            "https://api.protonvpn.ch/tests/ping",
+            "http://connectivitycheck.gstatic.com/generate_204",
+        )
     }
 }

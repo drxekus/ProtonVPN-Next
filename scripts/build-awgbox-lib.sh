@@ -37,7 +37,7 @@ native_output_is_valid() {
     elf_reader="$(command -v llvm-readelf || command -v readelf || true)"
   fi
   if [[ -z "$elf_reader" && -n "${ANDROID_HOME:-}" ]]; then
-    elf_reader="$(find "$ANDROID_HOME/ndk" -path '*/toolchains/llvm/prebuilt/*/bin/llvm-readelf' -type f -print -quit 2>/dev/null || true)"
+    elf_reader="$(find "$ANDROID_HOME/ndk" -path '*/toolchains/llvm/prebuilt/*/bin/llvm-readelf*' -type f -print -quit 2>/dev/null || true)"
   fi
   if [[ -z "$elf_reader" ]]; then
     echo "llvm-readelf or readelf is required to validate the AWGBox native library" >&2
@@ -75,7 +75,15 @@ artifact_is_valid() {
   output_is_valid && native_output_is_valid
 }
 
-if [[ "$FORCE_REBUILD" != "1" ]] && artifact_is_valid; then
+# The local patches change the native library, so an existing AAR is only current when it was
+# built from the same set of patches; otherwise adding a patch would silently keep the old core.
+PATCHES_STAMP="$(cat "$ROOT"/scripts/patches/*.patch | sha256sum | awk '{ print $1 }')"
+STAMP_FILE="$OUTPUT.patches"
+artifact_is_current() {
+  [[ "$(cat "$STAMP_FILE" 2>/dev/null)" == "$PATCHES_STAMP" ]] && artifact_is_valid
+}
+
+if [[ "$FORCE_REBUILD" != "1" ]] && artifact_is_current; then
   echo "AWGBox AAR is already available and verified: $OUTPUT"
   exit 0
 fi
@@ -106,7 +114,7 @@ echo "Building AWGBox with $actual_go_toolchain"
 mkdir -p "$ROOT/.artifacts" "$(dirname "$OUTPUT")"
 LOCK_DIR="$ROOT/.artifacts/awgbox-build.lock"
 while ! mkdir "$LOCK_DIR" 2>/dev/null; do
-  if artifact_is_valid; then
+  if artifact_is_current; then
     echo "AWGBox AAR was prepared by another Gradle process: $OUTPUT"
     exit 0
   fi
@@ -120,7 +128,7 @@ echo "$$" > "$LOCK_DIR/pid"
 trap 'rm -rf "$LOCK_DIR"' EXIT
 
 # Another process may have completed while this process was waiting for the lock.
-if [[ "$FORCE_REBUILD" != "1" ]] && artifact_is_valid; then
+if [[ "$FORCE_REBUILD" != "1" ]] && artifact_is_current; then
   echo "AWGBox AAR is already available and verified: $OUTPUT"
   exit 0
 fi
@@ -147,6 +155,9 @@ git -C "$WORK" submodule update --init --depth 1
 # the Guardian Project Android package.
 git -C "$WORK" apply "$ROOT/scripts/patches/awgbox-tor-android.patch"
 git -C "$WORK" apply "$ROOT/scripts/patches/awgbox-tor-log-noise.patch"
+# Rebind the AWG socket and send a keepalive whenever the default network changes; upstream
+# only does this for the plain WireGuard endpoint.
+git -C "$WORK" apply "$ROOT/scripts/patches/awgbox-awg-rebind.patch"
 
 GOBIN_DIR="$WORK/.bin"
 mkdir -p "$GOBIN_DIR"
@@ -191,8 +202,9 @@ gofmt -w "$WORK/cmd/internal/build_libbox/main.go"
 # The generator locates gomobile through GOPATH/bin. Keep this cache outside
 # the disposable source checkout so forced rebuilds do not redownload Go modules.
 mkdir -p "$GOPATH_DIR/bin"
-cp "$GOBIN_DIR/gomobile" "$GOPATH_DIR/bin/"
-cp "$GOBIN_DIR/gobind" "$GOPATH_DIR/bin/"
+# go install adds .exe on Windows.
+cp "$GOBIN_DIR"/gomobile* "$GOPATH_DIR/bin/"
+cp "$GOBIN_DIR"/gobind* "$GOPATH_DIR/bin/"
 (
   cd "$WORK"
   export GOPATH="$GOPATH_DIR"
@@ -212,5 +224,6 @@ if ! OUTPUT="$TEMP_OUTPUT" artifact_is_valid; then
 fi
 actual_sha256="$(sha256sum "$TEMP_OUTPUT" | awk '{ print $1 }')"
 mv "$TEMP_OUTPUT" "$OUTPUT"
+echo "$PATCHES_STAMP" > "$STAMP_FILE"
 echo "AWGBox AAR built from pinned commit $EXPECTED_COMMIT"
 echo "$actual_sha256  ${OUTPUT#$ROOT/}"

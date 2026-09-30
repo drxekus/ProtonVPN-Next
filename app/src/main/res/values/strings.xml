@@ -120,9 +120,9 @@
     <string name="settings_title">Settings</string>
     <string name="settings_connection">Connection Settings</string>
     <string name="settings_kill_switch" translatable="false">Kill Switch</string>
-    <string name="settings_kill_switch_desc">Kill Switch</string>
+    <string name="settings_kill_switch_desc">Block the internet when the VPN drops, using Android settings</string>
     <string name="settings_auto_connect">Auto Connect</string>
-    <string name="settings_auto_connect_desc">Connect to VPN on startup</string>
+    <string name="settings_auto_connect_desc">Connect when the app is opened</string>
     <string name="settings_split_tunneling">Split Tunneling</string>
     <string name="settings_split_tunneling_desc">Exclude apps or IPs from VPN</string>
     <string name="settings_excluded_apps">Excluded Apps</string>
@@ -223,9 +223,9 @@
     <string name="settings_custom_dns">Custom DNS</string>
     <string name="settings_custom_dns_default">Default (Proton DNS)</string>
     <string name="settings_custom_dns_title">Custom DNS Server</string>
-    <string name="settings_custom_dns_desc">Enter an IPv4 or IPv6 address. Leave blank to use Proton\'s default secure DNS.</string>
+    <string name="settings_custom_dns_desc">Enter an IPv4 address (for example 1.1.1.1). IPv6 is not supported. Leave blank to use Proton\'s default DNS.</string>
     <string name="settings_custom_dns_reset">Reset Default</string>
-    <string name="settings_custom_dns_placeholder">e.g. 1.1.1.1 or 2606:4700:4700::1111</string>
+    <string name="settings_custom_dns_placeholder">e.g. 1.1.1.1 or 9.9.9.9</string>
     <string name="settings_dns_provider_title">Encrypted DNS provider</string>
     <string name="settings_dns_provider_desc">Choose which resolver the app queries. Every option is outside Russian jurisdiction, so answers cannot be redirected to NSDI.</string>
     <string name="settings_dns_provider_auto">Automatic</string>
@@ -658,6 +658,8 @@
     <string name="ipv6_blocked_desc">This server is only reachable over IPv6. IPv6 is disabled to prevent traffic leaks. Please choose another server or try again.</string>
     <string name="proxy_config_invalid_title">Proxy configuration needs attention</string>
     <string name="proxy_config_invalid_desc">Proxy chaining is enabled, but the VLESS or VMess link is invalid. Fix the link in Settings and reconnect.</string>
+    <string name="server_not_responding_title">The VPN server does not answer</string>
+    <string name="server_not_responding_desc">The tunnel started, but no traffic came back. Other servers and ports were already tried and the app keeps retrying. Pick another country, turn on obfuscation or change the port.</string>
 
     <!-- Anti-Tamper / Scary Warning -->
     <string name="tamper_warning_title">UNOFFICIAL BUILD DETECTED!</string>
@@ -802,26 +804,26 @@
     <string name="netshield_data_saved">Data saved</string>
 
     <string name="verification_title">Connection verification</string>
-    <string name="verification_settings_subtitle">Probes, failure detection and automatic reconnects</string>
+    <string name="verification_settings_subtitle">Checks that the VPN really works and restarts it when it breaks</string>
     <string name="verification_description">Control how the app verifies a new tunnel, detects connection failures and automatically reconnects.</string>
     <string name="verification_mode_title">Verification aggressiveness</string>
     <string name="verification_mode_disabled">Disabled</string>
-    <string name="verification_mode_disabled_desc">Do not run active tunnel probes or automatic failure detection</string>
+    <string name="verification_mode_disabled_desc">No checks: Connected right after start, the tunnel is not watched. Not recommended</string>
     <string name="verification_mode_relaxed">Verify handshake only</string>
-    <string name="verification_mode_relaxed_desc">Show Connected only after an AmneziaWG handshake. A new outgoing handshake opens the same timed verification window; DNS probes are not used.</string>
+    <string name="verification_mode_relaxed_desc">Connected only after the server answers the WireGuard handshake; no test requests are sent</string>
     <string name="verification_mode_balanced">Balanced</string>
-    <string name="verification_mode_balanced_desc">Recommended balance between responsiveness and false positives</string>
+    <string name="verification_mode_balanced_desc">Default. Handshake plus a test HTTPS request through the tunnel</string>
     <string name="verification_mode_aggressive">Aggressive</string>
-    <string name="verification_mode_aggressive_desc">Detect failures quickly and retry with short delays</string>
+    <string name="verification_mode_aggressive_desc">Like Balanced with shorter timeouts: reacts faster, may switch servers needlessly</string>
     <string name="verification_behavior_title">Connection behavior</string>
     <string name="verification_require_title">Wait for verification</string>
     <string name="verification_require_desc">Keep the connection in verifying state until the initial probe finishes</string>
     <string name="verification_preflight_title">Require preflight checks</string>
-    <string name="verification_preflight_desc">Block connection when the physical-network probe fails</string>
+    <string name="verification_preflight_desc">Cancel connecting if the server address or proxy cannot be checked over the regular network</string>
     <string name="verification_failure_detection_title">Detect tunnel failures</string>
-    <string name="verification_failure_detection_desc">Monitor engine errors and stalled transport activity</string>
+    <string name="verification_failure_detection_desc">Treat proxy chain (VLESS/VMess) transport errors as a broken tunnel</string>
     <string name="verification_auto_reconnect_title">Automatic reconnect</string>
-    <string name="verification_auto_reconnect_desc">Restart the tunnel after a detected failure</string>
+    <string name="verification_auto_reconnect_desc">Restart a broken tunnel by itself; when off, it stays down until you reconnect</string>
     <string name="verification_note">Disabling verification does not disable VPN encryption. It only skips active connectivity probes and health-based reconnects.</string>
     <string name="settings_tor_mode">Tor mode</string>
     <string name="settings_tor_mode_desc">Route VPN traffic through Tor. UDP is blocked while this mode is active.</string>
@@ -836,25 +838,6 @@
     <string name="settings_reconnect_hint">Reconnect notice</string>
     <string name="settings_reconnect_hint_desc">Warn that changed connection settings apply only after reconnecting</string>
 
-    <!-- AI Mode -->
-    <string name="settings_ai">AI</string>
-    <string name="settings_ai_desc">Experimental AI assistant for app control</string>
-    <string name="ai_settings_title">AI Settings</string>
-    <string name="ai_mode_title">AI Mode</string>
-    <string name="ai_mode_desc">Enable AI assistant to help you configure the app</string>
-    <string name="ai_provider">AI Provider</string>
-    <string name="ai_model">AI Model</string>
-    <string name="ai_api_key">API Key</string>
-    <string name="ai_bypass_blocks">Bypass AI Blocks (Russia)</string>
-    <string name="ai_bypass_blocks_desc">Route AI requests through the active VPN or the custom SOCKS5/HTTPS proxy configured below. DNS alone cannot bypass regional restrictions.</string>
-    <string name="ai_byok_desc">Currently supports Bring Your Own Key (BYOK) mode.</string>
-    <string name="ai_hint_api_key">Enter your API key for the selected provider.</string>
-    <string name="ai_hint_long_press">Long press on the navigation bar to open the AI command bar.</string>
-    <string name="ai_input_hint">Ask something (e.g., \"Change port to 1194\")</string>
-    <string name="ai_error_no_key">Please set an API key in AI settings.</string>
-    <string name="ai_processing">Processing…</string>
-    <string name="ai_success">Done!</string>
-    <string name="ai_error_generic">AI error occurred</string>
     <string name="ip_rotation_title">IP rotation</string>
     <string name="ip_rotation_description">Automatically reconnect to another VPN server on a schedule to receive a new public IP address.</string>
     <string name="ip_rotation_section_status">Status</string>
@@ -870,55 +853,10 @@
     <string name="connection_mode_standard">Standard</string>
     <string name="connection_mode_tor">Tor</string>
 
-    <string name="ai_assistant_label">AI assistant</string>
-    <string name="ai_proposal_close">Close proposal</string>
-    <string name="ai_refine_hint">Ask AI to change this proposal…</string>
-    <string name="ai_refine_action">Update proposal</string>
-    <string name="ai_proposal_cancel">Not now</string>
-    <string name="ai_proposal_apply">Apply changes</string>
-
-    <string name="ai_proposal_preview_label">PROFILE PREVIEW</string>
-    <string name="ai_refine_bottom_hint">Use the AI field below to change this proposal</string>
-    <string name="ai_profile_fastest">Fastest available</string>
-    <string name="ai_profile_any_city">Any city</string>
-    <string name="ai_profile_any_country">Any country</string>
-    <string name="ai_profile_standard_obfuscation">Standard profile</string>
-    <string name="ai_profile_new_badge">New</string>
-    <string name="ai_profile_edit_badge">Update</string>
-    <string name="ai_profile_country">Country</string>
-    <string name="ai_profile_city">City</string>
-    <string name="ai_profile_server">Server</string>
-    <string name="ai_profile_port">Port</string>
-    <string name="ai_profile_protocol">Protocol</string>
-    <string name="ai_profile_obfuscation">Obfuscation</string>
-    <string name="ai_profile_connect_go">Connect &amp; Go</string>
-
     <string name="verification_handshake_timeout_section">Handshake timeout</string>
     <string name="verification_handshake_timeout_title">Reconnect timeout</string>
-    <string name="verification_handshake_timeout_desc">Wait this long for the handshake response before reconnecting to the same server.</string>
+    <string name="verification_handshake_timeout_desc">How long to wait for the server to answer the handshake before restarting the tunnel and trying other servers and ports.</string>
     <string name="verification_handshake_timeout_value">%1$d s</string>
-    <!-- Custom AI providers -->
-    <string name="ai_model_not_selected">Not selected</string>
-    <string name="ai_model_select">Select model</string>
-    <string name="ai_model_refresh">Load models from API</string>
-    <string name="ai_model_manual">Model name</string>
-    <string name="ai_models_loading">Loading models…</string>
-    <string name="ai_models_failed">Could not load the model list</string>
-    <string name="ai_models_no_key">Add an API key first</string>
-    <string name="ai_provider_add">Add provider</string>
-    <string name="ai_provider_edit">Edit provider</string>
-    <string name="ai_provider_delete">Delete provider</string>
-    <string name="ai_provider_name">Provider name</string>
-    <string name="ai_provider_base_url">API base URL</string>
-    <string name="ai_provider_base_url_hint">https://api.example.com/v1</string>
-    <string name="ai_provider_base_url_desc">Paste the API root, for example https://api.example.com/v1. Chat and model endpoints are derived from it.</string>
-    <string name="ai_provider_compatibility">API compatibility</string>
-    <string name="ai_provider_compat_openai">OpenAI-compatible</string>
-    <string name="ai_provider_compat_anthropic">Anthropic-compatible</string>
-    <string name="ai_provider_error_name">Enter a provider name</string>
-    <string name="ai_provider_error_url">Enter an absolute http(s) API URL</string>
-    <string name="ai_provider_save">Save</string>
-    <string name="ai_provider_cancel">Cancel</string>
     <!-- NetShield custom filters and sources -->
     <string name="netshield_custom_filters_title">My filters</string>
     <string name="netshield_custom_filters_desc">Add your own rules. Hosts files, adblock syntax and plain domain lists are all accepted.</string>
@@ -943,4 +881,37 @@
     <string name="netshield_category_adult">Adult content</string>
     <string name="netshield_save">Save</string>
     <string name="netshield_cancel">Cancel</string>
+    <!-- Setting explanations shown behind the info icon -->
+    <string name="settings_info_button_desc">How it works</string>
+    <string name="settings_logout_desc">Sign out of your Proton account on this device</string>
+    <string name="load_mode_description">Choose how server load is shown in the country and server lists.</string>
+    <string name="pause_custom_amount">Duration</string>
+    <string name="settings_split_tunneling_info">Lets chosen traffic bypass the VPN. In Exclude mode the selected apps, IP addresses and domains go directly over your normal connection and everything else goes through the VPN; in Include mode only the selected ones use the VPN. Domains are resolved to IP addresses once, when the VPN connects, so a site that later changes its addresses can slip out of the rule until you reconnect. Changes apply after reconnecting. Off by default.</string>
+    <string name="settings_netshield_info">Blocks malware, ads and trackers (depending on the level) by filtering DNS requests inside the tunnel. This is not Proton\'s server-side NetShield: the app itself downloads public block lists and checks every DNS request on your phone, so it works with any server. You can add your own rules and choose the list sources. A blocked domain simply does not resolve, which occasionally breaks a site. Off by default.</string>
+    <string name="settings_protocol_info">The VPN always uses AmneziaWG, a WireGuard variant that can disguise its traffic. In the protocol settings you can turn on obfuscation, which sends decoy (junk) packets before the WireGuard handshake so that DPI systems have a harder time recognising and blocking the VPN, or a proxy chain, which carries the tunnel through your own VLESS/VMess servers (turning it on switches obfuscation off). Use them only when your network blocks or slows down the VPN; otherwise they just add overhead. Both are off by default.</string>
+    <string name="settings_auto_connect_info">Connects once, automatically, when you open the app. It does not start the VPN after a reboot and does not bring it back if Android or the phone\'s battery manager kills the app. For that, enable Android\'s \"Always-on VPN\" for this app (Settings → Network → VPN → gear icon next to the app): Android then starts the app itself, and the app restores the last tunnel. Off by default.</string>
+    <string name="settings_reconnect_hint_info">Most connection settings (port, split tunneling, DNS, obfuscation and so on) are read only when the tunnel is built. If you change one while connected, this notice asks whether to reconnect now so that the change takes effect, or later. With the notice off, the change simply applies at the next connection. On by default.</string>
+    <string name="settings_ip_rotation_info">While connected, the app reconnects to another server every few minutes (5, 15, 30 or 60; 15 by default), so websites see a new IP address. By default the new server is in the same country. The tunnel is rebuilt at every rotation, so open connections such as downloads, calls or games break for a moment. Off by default.</string>
+    <string name="settings_api_bypass_info">Affects only the app\'s own requests to Proton (login, server list, certificates) while the VPN is off; VPN traffic is not affected. Use it when Proton\'s API is blocked on your network and you cannot log in or load the servers. Available methods: Proton mirrors (Proton\'s own alternative routing, found through encrypted DNS), your own SOCKS5/HTTP proxy, and ByeDPI (local DPI circumvention on the phone). The mod author\'s Netlify, Cloudflare, Deno and \"event\" proxies were removed because they could read login data and session tokens. Off by default.</string>
+    <string name="settings_port_info">The UDP port of the WireGuard server the tunnel connects to. \"Auto\" (default) tries 443 first, then 51820, 1194 and 123, and remembers the last port that worked. If your network blocks a port, the app automatically moves on to the next one. Choose a fixed port only if you know which one works on your network.</string>
+    <string name="settings_cert_management_info">The VPN key is authorised by a certificate issued by Proton. By default the app uses a short-lived certificate and renews it by itself, which needs access to Proton\'s API. The extended (persistent) certificate asks Proton for a long-lived one instead, so the VPN can keep reconnecting much longer without contacting Proton; useful where the API is often blocked. You can also request a new certificate here manually.</string>
+    <string name="settings_app_theme_info">Changes only how the app looks; it has no effect on the VPN. \"System\" follows the light or dark setting of Android. The default is System (Nothing on Nothing phones).</string>
+    <string name="settings_load_display_mode_info">Chooses how server load is shown in the country and server lists: a bar, a percentage, both or nothing. Load is the share of a server\'s capacity in use, as reported by Proton; less loaded servers are usually faster. Only the display changes, the choice of server is not affected. Default: bar and percentage.</string>
+    <string name="settings_verification_info">Checks that the VPN really carries traffic, not just that it has started, and restarts the tunnel when it stops working. The mode sets how strict the check is: Disabled, Verify handshake only, Balanced (default) or Aggressive. In every mode except Disabled the app keeps watching the tunnel: if the server stops answering handshakes for about 25 seconds, the tunnel is restarted, after first waiting for a network (for example during a cell tower handover). Open the screen for details on each mode.</string>
+    <string name="settings_custom_dns_info">This screen has two different settings. Encrypted DNS provider: the DNS-over-HTTPS resolver the app itself uses to look up Proton\'s API and server addresses; it does not affect your traffic. If DoH on port 443 is blocked, DNS over TLS on port 853 can be tried. Custom DNS server: the DNS server all apps use inside the tunnel. Only an IPv4 address is accepted; leave it empty to use Proton\'s DNS (default). Resolvers under Russian jurisdiction are refused.</string>
+    <string name="settings_country_spoofing_info">Only adds an x-pm-country header with the chosen country code (or leaves the header out) to the app\'s requests to Proton\'s API, which can change what the API returns, for example the server list. It does not change your IP address, your location as seen by websites, or the VPN tunnel. Off by default.</string>
+    <string name="settings_kill_switch_info">The app has no kill switch of its own; it relies on the one built into Android. Turn on \"Always-on VPN\" and \"Block connections without VPN\" for this app (the button on this screen opens those settings). Then, if the tunnel drops, other apps get no internet at all instead of leaking traffic past the VPN, and the app reconnects by itself. The flip side: while the VPN is off (including a pause), there is no internet.</string>
+    <string name="settings_error_reporting_info">Available only in the standard build. Sends crash reports and error details to the developer through the Sentry service, so that bugs can be found and fixed. By default only crash reports and handled (non-fatal) errors are on; performance data, freeze (ANR) detection, metrics, logs, session replays and usage analytics stay off until you enable them. The privacy build contains no reporting at all.</string>
+    <string name="settings_notifications_info">Shows a notification while the VPN is connecting or connected, with the server name, the current speed and a Disconnect button. When off, the notification is removed right after the connection starts (Android requires it for a moment), and Android still shows its key icon in the status bar. The VPN itself keeps working the same way. On by default.</string>
+    <string name="settings_allow_lan_info">Excludes local network ranges (10.x.x.x, 172.16–31.x.x, 192.168.x.x and link-local 169.254.x.x) from the tunnel, so printers, NAS drives, Chromecast and other devices on your Wi-Fi stay reachable while the VPN is on. Traffic to those addresses then does not go through the VPN. Changes apply after reconnecting. Off by default.</string>
+    <string name="settings_backup_info">Saves the settings groups you choose, and optionally profiles and recent connections, to a JSON file, and restores them from such a file, for example on a new phone. Your Proton login and session are not included. The file is not encrypted and may contain the username and password of your API proxy, so keep it private.</string>
+    <string name="settings_widget_info">Asks your launcher to add the app\'s widget to the home screen. The widget shows whether the VPN is connected and lets you connect or disconnect with one tap without opening the app. If nothing happens, your launcher does not support this; add the widget from the launcher\'s widget list instead.</string>
+    <string name="verification_mode_disabled_info">No checks at all: Connected is shown as soon as the VPN engine starts, even if the server never answers. The tunnel is not watched, so if the server stops answering, the app does not notice and traffic simply stops. Encryption is not affected. Not recommended; use it only if the checks misbehave on your network.</string>
+    <string name="verification_mode_relaxed_info">Connected is shown only after the WireGuard handshake with the server has succeeded, which proves the server answers. If there is no handshake within the timeout (slider below, 12 s by default, 6–30 s), the tunnel is restarted and other servers and ports are tried. No test requests are sent through the tunnel. While connected the app keeps watching the handshakes: if the server stops answering for about 25 seconds, the tunnel is restarted after first waiting for a network (for example during a cell tower handover).</string>
+    <string name="verification_mode_balanced_info">The default. After the handshake the app also makes a real HTTPS request through the tunnel (to Proton\'s API or Google\'s connectivity check, which only see the VPN IP). This catches servers that answer the handshake but do not pass traffic. If the request fails, another server or port is tried. After that the tunnel is watched the same way as in \"Verify handshake only\".</string>
+    <string name="verification_mode_aggressive_info">The same checks as Balanced, but with shorter timeouts and retry delays, and the app acts on the first failure. It leaves a broken server faster, but on a slow or congested network it may give up on a working server and switch for nothing.</string>
+    <string name="verification_handshake_timeout_info">How long to wait for the server\'s first reply to the handshake after the tunnel starts. If there is no reply in time, the tunnel is restarted and other servers and ports are tried. 12 seconds by default, adjustable from 6 to 30. Increase it if your network is slow or unstable and connecting keeps restarting before it completes.</string>
+    <string name="verification_preflight_info">Before the tunnel starts, the app resolves the server address and, if a proxy chain is used, checks that the proxy is reachable, over your normal network rather than the VPN. On: if this check fails, connecting is cancelled and an error is shown. Off (default): a failed check is only logged as a warning and the app tries to connect anyway.</string>
+    <string name="verification_failure_detection_info">Applies only to a proxy chain (VLESS/VMess). The app counts transport errors of the proxy connection (timeouts, reset connections) and, when there are too many in a short time, treats the tunnel as broken and restarts it (if automatic reconnect is on). Without a proxy chain this switch has no effect: plain AmneziaWG is watched through its handshakes. It does nothing in the Disabled mode. On by default.</string>
+    <string name="verification_auto_reconnect_info">On (default): when the tunnel breaks (the engine stops, the server stops answering or a check fails), the app restarts it by itself and, if needed, tries other servers and ports until it works or you press Disconnect. Off: a broken tunnel stays broken until you reconnect manually. With Android\'s \"Block connections without VPN\" on, there is no internet in the meantime.</string>
 </resources>

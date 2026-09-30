@@ -27,9 +27,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ServiceInfo
-import android.net.NetworkCapabilities
 import android.net.TrafficStats
 import android.net.VpnService
+import android.os.Binder
 import android.os.Build
 import android.os.IBinder
 import android.os.ParcelFileDescriptor
@@ -107,8 +107,10 @@ internal fun libboxLocale(locale: Locale): String {
 /**
  * Android VPN service backed by amnezia-box (sing-box + AWG/AWG2).
  *
- * The service intentionally keeps the public Intent/broadcast contract stable so the rest of the
- * app can migrate independently from the old wg-quick/GoBackend implementation.
+ * Once it has a configuration the service owns the tunnel's life: it restores the last tunnel
+ * when Android restarts it (sticky restart or Always-on VPN), reports "verified" only after a
+ * real WireGuard handshake, notices when the server stops answering, and keeps trying — waiting
+ * for a network first — instead of quietly stopping after a short loss of connectivity.
  */
 @AndroidEntryPoint
 class ProtonVpnService : VpnService(), CommandServerHandler {
@@ -125,6 +127,14 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
         const val ACTION_STATS_UPDATED = "ru.protonmod.next.vpn.STATS_UPDATED"
         const val ACTION_SET_VERIFIED = "ru.protonmod.next.vpn.SET_VERIFIED"
         const val ACTION_QUERY_STATE = "ru.protonmod.next.vpn.QUERY_STATE"
+        /** Sent to the app whenever a tunnel attempt turns out not to carry traffic. */
+        const val ACTION_TUNNEL_FAILED = "ru.protonmod.next.vpn.TUNNEL_FAILED"
+        /**
+         * Bind action for the app process. A binding made without BIND_AUTO_CREATE neither starts
+         * nor keeps this service alive, but it tells the app immediately when this process dies,
+         * which a killed process could never announce with a broadcast.
+         */
+        const val ACTION_BIND_STATUS = "ru.protonmod.next.vpn.BIND_STATUS"
 
         const val EXTRA_CONFIG = "config_string"
         const val EXTRA_EXCLUDED_APPS = "excluded_apps"
@@ -151,7 +161,16 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
         const val EXTRA_HANDSHAKE_TIMEOUT_SECONDS = "handshake_timeout_seconds"
         const val EXTRA_FAILURE_DETECTION_ENABLED = "failure_detection_enabled"
         const val EXTRA_AUTO_RECONNECT_ENABLED = "auto_reconnect_enabled"
+        const val EXTRA_FAILURE_REASON = "failure_reason"
+        /** Marks a CONNECT rebuilt from the on-disk snapshot rather than freshly built by the app. */
+        const val EXTRA_RESTORED = "restored_from_snapshot"
         const val STATE_CONNECTING = "CONNECTING"
+
+        const val FAILURE_HANDSHAKE_TIMEOUT = "handshake_timeout"
+        const val FAILURE_HANDSHAKE_STALLED = "handshake_stalled"
+        const val FAILURE_TRANSPORT = "transport_failure"
+        const val FAILURE_ENGINE = "engine_failure"
+        const val FAILURE_PERMANENT = "permanent_failure"
 
         private const val NOTIFICATION_ID = 1001
         private const val CHANNEL_ID = "vpn_status_channel"
@@ -161,6 +180,29 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
         private const val LOGCAT_CHUNK_SIZE = 3_500
         private val libboxInitialized = AtomicBoolean(false)
         private val libboxInitDeferred = CompletableDeferred<Unit>()
+
+        /** Delays between automatic recovery attempts; the last one repeats. */
+        private val RECOVERY_DELAYS_MS = longArrayOf(1_000, 3_000, 5_000, 10_000, 20_000, 30_000, 60_000)
+        /** WireGuard retries a handshake every 5 s; this long without an answer is a dead tunnel. */
+        private const val HANDSHAKE_STALL_MS = 25_000L
+        private const val HEALTH_TICK_MS = 5_000L
+        private const val NOTIFICATION_REFRESH_MS = 5_000L
+        private const val APP_REQUEST_THROTTLE_MS = 30_000L
+        private val APP_CONFIG_WAIT = 60.seconds
+        /** A restored snapshot may carry an expired certificate; ask the app for a fresh one then. */
+        private const val RESTORED_ATTEMPTS_BEFORE_APP_REQUEST = 2
+        private const val ATTEMPTS_BEFORE_APP_REQUEST = 3
+
+        /** Engine messages worth keeping in the on-device event log (never with addresses). */
+        private val ENGINE_EVENT_MARKERS = listOf(
+            "sending handshake initiation",
+            "received handshake response",
+            "updated default interface",
+            "missing default interface",
+            "update bind",
+            "network is unreachable",
+            "handshake did not complete",
+        )
 
         /** Engine start failures that only mean the device currently has no usable network. */
         private val TRANSIENT_NETWORK_ERROR_MARKERS = listOf(
@@ -177,11 +219,14 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val engineMutex = Mutex()
     private lateinit var platform: AwgBoxPlatform
+    private lateinit var snapshotStore: TunnelSnapshotStore
     private var commandServer: CommandServer? = null
     private var tunDescriptor: ParcelFileDescriptor? = null
     private var statsJob: Job? = null
     private var reconnectJob: Job? = null
     private var handshakeVerificationJob: Job? = null
+    private var healthJob: Job? = null
+    private var appConfigWaitJob: Job? = null
     private var engineJob: Job? = null
     private var shutdownJob: Job? = null
     private val lifecycleGeneration = AtomicLong(0)
@@ -203,9 +248,15 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
     private var failureDetectionEnabled = true
     private var autoReconnectEnabled = true
     private var logicalServerId: String? = null
-    private var lastConfig: String? = null
     private var lastConnectIntent: Intent? = null
+    private var persistedConfig: String? = null
+    private var restoredFromSnapshot = false
+    private var recoveryAttempt = 0
+    private var lastAppRequestAt = 0L
+    private var lastNotificationAt = 0L
     @Volatile private var handshakeObserved = false
+    /** When the current unanswered handshake initiation started, or 0 when none is pending. */
+    @Volatile private var pendingInitiationSince = 0L
     private var lastRx = 0L
     private var lastTx = 0L
     private var lastSpeed: String? = null
@@ -216,7 +267,10 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
     private val settingsReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
-                ACTION_DISCONNECT -> stopTunnel(manual = true)
+                // The app falls back to a broadcast when Android refuses a foreground-service
+                // start from the background; the service is already running in that case.
+                ACTION_CONNECT -> startTunnel(intent)
+                ACTION_DISCONNECT -> stopTunnel()
                 ACTION_UPDATE_SETTINGS -> applySettings(intent)
                 ACTION_SET_VERIFIED -> markVerified()
                 ACTION_QUERY_STATE -> sendState(if (connecting) null else state)
@@ -227,6 +281,9 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannels()
+        snapshotStore = TunnelSnapshotStore(this)
+        VpnEventLog.init(this)
+        VpnEventLog.log("service created")
         // Libbox.setup is a long-running native call; run it on IO to avoid blocking the main
         // thread and triggering a Background ANR.
         scope.launch(Dispatchers.IO) { initializeLibbox() }
@@ -238,6 +295,7 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
             this,
             settingsReceiver,
             IntentFilter().apply {
+                addAction(ACTION_CONNECT)
                 addAction(ACTION_DISCONNECT)
                 addAction(ACTION_UPDATE_SETTINGS)
                 addAction(ACTION_SET_VERIFIED)
@@ -259,8 +317,8 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
             tempPath = cacheDir.absolutePath
             logMaxLines = 2_000
             // libbox only invokes CommandServerHandler.writeDebugMessage when this flag is on.
-            // NetShield counts DNS rule matches through that callback in every build type; raw
-            // engine messages are still written to Logcat only in debug builds below.
+            // NetShield and the handshake monitor read engine messages through that callback in
+            // every build type; raw engine messages are still written to Logcat only in debug builds.
             debug = true
             fixAndroidStack = true
             // Libbox.setup() now owns the stderr redirect that Libbox.redirectStderr() used to
@@ -292,7 +350,11 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
         }
     }
 
-    override fun onBind(intent: Intent): IBinder? = super.onBind(intent)
+    /** Handed to the app process so it learns at once when this process dies. */
+    private val statusBinder = Binder()
+
+    override fun onBind(intent: Intent): IBinder? =
+        if (intent.action == ACTION_BIND_STATUS) statusBinder else super.onBind(intent)
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // Every startForegroundService() call must be answered with a foreground promotion within
@@ -305,10 +367,15 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
 
         when (intent?.action) {
             ACTION_CONNECT -> startTunnel(intent)
-            ACTION_DISCONNECT -> stopTunnel(manual = true)
+            ACTION_DISCONNECT -> stopTunnel()
             ACTION_UPDATE_SETTINGS -> applySettings(intent)
             ACTION_SET_VERIFIED -> markVerified()
             ACTION_QUERY_STATE -> sendState(if (connecting) null else state)
+            // A null intent is Android restarting the service after its process was killed; the
+            // VpnService action is Always-on VPN asking for a tunnel. Both used to stop the
+            // service on the spot, which with "Block connections without VPN" left the phone
+            // offline until the app was opened again.
+            null, SERVICE_INTERFACE -> handleSystemStart(alwaysOn = intent != null)
             else -> {
                 if (state == VpnTunnelState.DOWN && !connecting) {
                     stopForeground(STOP_FOREGROUND_REMOVE)
@@ -320,10 +387,68 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
         return if (state == VpnTunnelState.DOWN && !connecting) START_NOT_STICKY else START_STICKY
     }
 
+    private fun handleSystemStart(alwaysOn: Boolean) {
+        VpnEventLog.log("system start (always-on=$alwaysOn, connecting=$connecting, state=$state)")
+        if (connecting || state == VpnTunnelState.UP) return
+        if (!alwaysOn && snapshotStore.userStopped) {
+            ProtonLogger.i(TAG, "Restarted by the system after the user disconnected; staying off")
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return
+        }
+        val restored = snapshotStore.load(this)?.apply { putExtra(EXTRA_RESTORED, true) }
+        if (restored != null) {
+            ProtonLogger.i(
+                TAG,
+                if (alwaysOn) "Always-on VPN start: restoring the last tunnel"
+                else "Restarted by the system: restoring the last tunnel"
+            )
+            startTunnel(restored)
+            return
+        }
+
+        ProtonLogger.i(TAG, "No saved tunnel to restore; asking the app for a configuration")
+        connecting = true
+        updateNotification(STATE_CONNECTING, ensureForeground = true)
+        sendState(null)
+        requestConfigFromApp("no saved tunnel")
+        appConfigWaitJob?.cancel()
+        appConfigWaitJob = scope.launch {
+            delay(APP_CONFIG_WAIT)
+            if (lastConnectIntent == null && state == VpnTunnelState.DOWN) {
+                ProtonLogger.w(TAG, "The app did not provide a configuration; stopping")
+                connecting = false
+                sendState(VpnTunnelState.DOWN)
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+            }
+        }
+    }
+
+    /**
+     * Wakes the app process (it may be dead) and asks it to build a fresh configuration, e.g. when
+     * a restored snapshot's certificate has expired. Throttled so a dead network cannot spin it.
+     */
+    private fun requestConfigFromApp(reason: String) {
+        val now = SystemClock.elapsedRealtime()
+        if (lastAppRequestAt != 0L && now - lastAppRequestAt < APP_REQUEST_THROTTLE_MS) return
+        lastAppRequestAt = now
+        ProtonLogger.i(TAG, "Asking the app to reconnect: $reason")
+        runCatching {
+            sendBroadcast(
+                Intent(VpnControlReceiver.ACTION_REQUEST_CONNECT)
+                    .setClass(this, VpnControlReceiver::class.java)
+                    .putExtra(EXTRA_FAILURE_REASON, reason)
+            )
+        }.onFailure { ProtonLogger.w(TAG, "Could not reach the app: ${it.message}") }
+    }
+
     private fun markVerified() {
         if (verified || state != VpnTunnelState.UP) return
+        VpnEventLog.log("verified")
         verified = true
         connecting = false
+        recoveryAttempt = 0
         handshakeVerificationJob?.cancel()
         handshakeVerificationJob = null
         sendState(VpnTunnelState.UP)
@@ -331,7 +456,10 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
     }
 
     private fun startTunnel(intent: Intent) {
-        if (!intent.getBooleanExtra(EXTRA_IS_RECONNECTING, false)) {
+        appConfigWaitJob?.cancel()
+        appConfigWaitJob = null
+        val isReconnect = intent.getBooleanExtra(EXTRA_IS_RECONNECTING, false)
+        if (!isReconnect) {
             localNetShield.beginSessionStats()
         }
         val config = intent.getStringExtra(EXTRA_CONFIG) ?: run {
@@ -347,19 +475,31 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
             mode = intent.getStringExtra(EXTRA_SPLIT_TUNNELING_MODE) ?: "exclude",
             selectedApps = intent.getStringArrayListExtra(EXTRA_EXCLUDED_APPS).orEmpty().toSet()
         )
-        lastConfig = config
-        lastConnectIntent = Intent(intent).apply {
+        restoredFromSnapshot = intent.getBooleanExtra(EXTRA_RESTORED, false)
+        VpnEventLog.log("start tunnel (reconnect=$isReconnect, restored=$restoredFromSnapshot)")
+        // Every restart replays this exact command, so split tunnelling and the health settings
+        // survive automatic reconnects (the retry intents used to be rebuilt without them).
+        val connectIntent = Intent(intent).apply {
             setClass(this@ProtonVpnService, ProtonVpnService::class.java)
             action = ACTION_CONNECT
+            removeExtra(EXTRA_IS_RECONNECTING)
         }
+        lastConnectIntent = connectIntent
+        if (!restoredFromSnapshot && config != persistedConfig) {
+            snapshotStore.save(connectIntent)
+            persistedConfig = config
+        }
+        snapshotStore.userStopped = false
         logFullConfigToLogcat(config)
         manualDisconnect = false
         val generation = lifecycleGeneration.incrementAndGet()
         handshakeVerificationJob?.cancel()
         handshakeVerificationJob = null
+        stopHealthMonitor()
         handshakeObserved = false
-        verified = verificationMode == ConnectionVerificationMode.DISABLED ||
-            (!verificationMode.handshakeOnly && !verificationRequired)
+        pendingInitiationSince = 0L
+        // Only a WireGuard handshake proves the server accepted us; "engine started" does not.
+        verified = verificationMode == ConnectionVerificationMode.DISABLED
         connecting = true
         updateNotification(STATE_CONNECTING, ensureForeground = true)
         sendState(null)
@@ -379,14 +519,28 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
                     if (lifecycleGeneration.get() != generation) return@withLock
                     closeEngine()
 
-                    if (!hasUsableUnderlyingNetwork()) {
+                    if (!vpnNetworkMonitor.hasUsableUnderlyingNetwork()) {
                         // Without an underlying network the engine cannot bind an outbound
                         // socket and fails with "no available network interface" (ANDROID-22A).
-                        // Abort before starting it and let the reconnect path wait for
-                        // connectivity instead of surfacing an engine crash.
+                        // The recovery path waits for connectivity instead.
                         ProtonLogger.w(TAG, "Skipping tunnel start: no usable underlying network")
                         withContext(Dispatchers.Main) {
-                            if (lifecycleGeneration.get() == generation) handleEngineFailure()
+                            if (lifecycleGeneration.get() == generation) {
+                                handleEngineFailure(permanent = false, reason = FAILURE_ENGINE)
+                            }
+                        }
+                        return@withLock
+                    }
+
+                    try {
+                        Libbox.checkConfig(config)
+                    } catch (error: Exception) {
+                        // A configuration the engine rejects will be rejected on every retry.
+                        ProtonLogger.e(TAG, "amnezia-box rejected the configuration", error)
+                        withContext(Dispatchers.Main) {
+                            if (lifecycleGeneration.get() == generation) {
+                                handleEngineFailure(permanent = true, reason = FAILURE_PERMANENT)
+                            }
                         }
                         return@withLock
                     }
@@ -395,7 +549,6 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
                     startingCommandServer = server
                     var adopted = false
                     try {
-                        Libbox.checkConfig(config)
                         server.startOrReloadService(config, OverrideOptions())
                         currentCoroutineContext().ensureActive()
                         if (lifecycleGeneration.get() != generation) return@withLock
@@ -407,13 +560,17 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
                             if (lifecycleGeneration.get() != generation || !connecting) return@withContext
                             state = VpnTunnelState.UP
                             connecting = false
+                            VpnEventLog.log("engine up")
                             resetTransportFailures()
                             sendState(VpnTunnelState.UP)
                             updateNotification(VpnTunnelState.UP.name)
                             startTrafficUpdates()
-                            if (verificationMode.handshakeOnly) {
+                            startHealthMonitor(generation)
+                            if (!verified) {
                                 if (handshakeObserved) markVerified()
                                 else startHandshakeVerificationWatchdog(generation)
+                            } else {
+                                recoveryAttempt = 0
                             }
                         }
                     } finally {
@@ -425,7 +582,8 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
                 // A newer connect or disconnect owns the lifecycle now.
             } catch (error: Exception) {
                 if (lifecycleGeneration.get() != generation) return@launch
-                if (hasUsableUnderlyingNetwork() && !isMissingNetworkInterfaceError(error)) {
+                val permanent = error.message?.contains(VPN_PERMISSION_REVOKED) == true
+                if (vpnNetworkMonitor.hasUsableUnderlyingNetwork() && !isMissingNetworkInterfaceError(error)) {
                     ProtonLogger.e(TAG, "Failed to start amnezia-box tunnel", error)
                 } else {
                     // The device lost connectivity between the preflight and the engine start, so
@@ -433,7 +591,12 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
                     ProtonLogger.w(TAG, "Tunnel start aborted without connectivity: ${error.message}")
                 }
                 withContext(Dispatchers.Main) {
-                    if (lifecycleGeneration.get() == generation) handleEngineFailure()
+                    if (lifecycleGeneration.get() == generation) {
+                        handleEngineFailure(
+                            permanent = permanent,
+                            reason = if (permanent) FAILURE_PERMANENT else FAILURE_ENGINE
+                        )
+                    }
                 }
             }
         }
@@ -458,22 +621,6 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
     }
 
     /**
-     * True when a non-VPN network that claims internet access is still present. Used to tell an
-     * engine start failure caused by the device going offline apart from a real configuration or
-     * runtime defect.
-     */
-    private fun hasUsableUnderlyingNetwork(): Boolean {
-        val networks = vpnNetworkMonitor.getTrackedNetworks()
-        if (networks.isEmpty()) return true
-        return networks.any { tracked ->
-            val capabilities = tracked.capabilities ?: return@any false
-            !capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN) &&
-                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
-        }
-    }
-
-    /**
      * True when the engine refused to start because the OS had no usable network interface to
      * bind an outbound socket to. This is a transient connectivity condition (airplane mode,
      * mobile data toggling, roaming handover), not a defect, so it must not be reported as an
@@ -489,46 +636,113 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
         return false
     }
 
-    private fun handleEngineFailure() {
+    private fun canRecoverAutomatically(): Boolean =
+        autoReconnectEnabled && !manualDisconnect && lastConnectIntent != null
+
+    /**
+     * The engine could not start or stopped by itself. A transient failure (no network during a
+     * cell handover, a server that did not answer) is retried until it works or the user
+     * disconnects. This used to depend on a hidden kill-switch flag that was off for everyone,
+     * so the tunnel simply stopped as if the user had pressed "Disconnect".
+     */
+    private fun handleEngineFailure(permanent: Boolean, reason: String) {
+        VpnEventLog.log("engine failure (permanent=$permanent, reason=$reason)")
+        stopTrafficUpdates()
+        stopHealthMonitor()
+        handshakeVerificationJob?.cancel()
+        handshakeVerificationJob = null
         state = VpnTunnelState.DOWN
-        connecting = false
         verified = false
+        if (!permanent && canRecoverAutomatically()) {
+            scheduleRecovery(reason)
+            return
+        }
+        connecting = false
         sendState(VpnTunnelState.DOWN)
+        sendTunnelFailed(reason)
         updateNotification(VpnTunnelState.DOWN.name)
-        if (killSwitchEnabled && autoReconnectEnabled && !manualDisconnect && !lastConfig.isNullOrBlank()) {
-            reconnectJob?.cancel()
-            reconnectJob = scope.launch {
-                delay(3.seconds)
-                val retry = Intent(this@ProtonVpnService, ProtonVpnService::class.java).apply {
-                    action = ACTION_CONNECT
-                    putExtra(EXTRA_CONFIG, lastConfig)
-                    putExtra(EXTRA_LOGICAL_SERVER_ID, logicalServerId)
-                    putExtra(EXTRA_NOTIFICATIONS_ENABLED, notificationsEnabled)
-                    putExtra(EXTRA_KILL_SWITCH_ENABLED, killSwitchEnabled)
-                    putExtra(EXTRA_IS_RECONNECTING, true)
-                    putExtra(EXTRA_VERIFICATION_MODE, verificationMode.name)
-                    putExtra(EXTRA_VERIFICATION_REQUIRED, verificationRequired)
-                    putExtra(EXTRA_FAILURE_DETECTION_ENABLED, failureDetectionEnabled)
-                    putExtra(EXTRA_AUTO_RECONNECT_ENABLED, autoReconnectEnabled)
-                }
-                startTunnel(retry)
+        scope.launch(Dispatchers.IO) { localNetShield.finishSessionStats() }
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
+    }
+
+    /**
+     * Restarts the last tunnel after a growing delay, but only once a physical network exists:
+     * attempts made while the phone is between cells are wasted and used to end the session.
+     */
+    private fun scheduleRecovery(reason: String) {
+        val retry = lastConnectIntent ?: return
+        connecting = true
+        verified = false
+        sendTunnelFailed(reason)
+        val delayMs = RECOVERY_DELAYS_MS[recoveryAttempt.coerceAtMost(RECOVERY_DELAYS_MS.lastIndex)]
+        recoveryAttempt++
+        val attempt = recoveryAttempt
+        ProtonLogger.w(TAG, "Recovering the tunnel ($reason), attempt $attempt in ${delayMs}ms")
+        VpnEventLog.log("recovery scheduled (reason=$reason, attempt=$attempt, delay=${delayMs}ms)")
+        reconnectJob?.cancel()
+        reconnectJob = scope.launch {
+            sendState(null)
+            updateNotification(STATE_CONNECTING)
+            delay(delayMs)
+            if (!vpnNetworkMonitor.hasUsableUnderlyingNetwork()) {
+                ProtonLogger.i(TAG, "Waiting for a network before reconnecting")
+                VpnEventLog.log("waiting for a network")
+                vpnNetworkMonitor.awaitUsableUnderlyingNetwork()
             }
-        } else {
-            scope.launch(Dispatchers.IO) { localNetShield.finishSessionStats() }
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
+            // This process can only replay the same configuration. After a few failures, wake
+            // the app so it can refresh the certificate or move to another server.
+            val appRequestThreshold =
+                if (restoredFromSnapshot) RESTORED_ATTEMPTS_BEFORE_APP_REQUEST else ATTEMPTS_BEFORE_APP_REQUEST
+            if (attempt >= appRequestThreshold) {
+                requestConfigFromApp("tunnel does not answer after $attempt attempts")
+            }
+            startTunnel(Intent(retry).putExtra(EXTRA_IS_RECONNECTING, true))
         }
     }
 
-    private fun stopTunnel(manual: Boolean) {
-        manualDisconnect = manual
+    /** The engine runs but the server does not answer: restart it through the recovery path. */
+    private fun onTunnelUnresponsive(reason: String) {
+        if (manualDisconnect || connecting || state != VpnTunnelState.UP) return
+        VpnEventLog.log("tunnel unresponsive ($reason)")
+        if (!autoReconnectEnabled) {
+            ProtonLogger.w(TAG, "Tunnel does not carry traffic ($reason); auto-reconnect is off")
+            if (verified) {
+                verified = false
+                sendState(VpnTunnelState.UP)
+                updateNotification(VpnTunnelState.UP.name)
+            }
+            sendTunnelFailed(reason)
+            return
+        }
+        stopTrafficUpdates()
+        stopHealthMonitor()
+        state = VpnTunnelState.DOWN
+        scheduleRecovery(reason)
+    }
+
+    private fun sendTunnelFailed(reason: String) {
+        sendInternalBroadcast(Intent(ACTION_TUNNEL_FAILED).apply {
+            putExtra(EXTRA_FAILURE_REASON, reason)
+            putExtra(EXTRA_LOGICAL_SERVER_ID, logicalServerId)
+            setPackage(packageName)
+        })
+    }
+
+    private fun stopTunnel() {
+        VpnEventLog.log("stop requested")
+        manualDisconnect = true
+        snapshotStore.userStopped = true
         val generation = lifecycleGeneration.incrementAndGet()
         reconnectJob?.cancel()
+        appConfigWaitJob?.cancel()
         handshakeVerificationJob?.cancel()
         handshakeVerificationJob = null
+        stopHealthMonitor()
         engineJob?.cancel()
         connecting = false
         verified = false
+        recoveryAttempt = 0
         state = VpnTunnelState.DOWN
         sendState(VpnTunnelState.DOWN)
         stopTrafficUpdates()
@@ -545,9 +759,7 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
             withContext(Dispatchers.Main) {
                 // A new connect may already be waiting for this shutdown to finish. Do not
                 // stop the service underneath that connection attempt.
-                if (lifecycleGeneration.get() == generation &&
-                    (manual || !killSwitchEnabled) && !connecting
-                ) {
+                if (lifecycleGeneration.get() == generation && !connecting) {
                     stopSelf()
                 }
             }
@@ -584,7 +796,9 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
             ProtonLogger.isAnalyticsEnabled = intent.getBooleanExtra(EXTRA_ANALYTICS_ENABLED, true)
         }
         readHealthSettings(intent)
-        if (verificationMode.handshakeOnly && state == VpnTunnelState.UP && !verified) {
+        if (verificationMode == ConnectionVerificationMode.DISABLED) {
+            if (state == VpnTunnelState.UP) markVerified()
+        } else if (state == VpnTunnelState.UP && !verified && handshakeVerificationJob?.isActive != true) {
             startHandshakeVerificationWatchdog(lifecycleGeneration.get())
         }
         updateNotification(if (connecting) STATE_CONNECTING else state.name)
@@ -663,7 +877,13 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
                     putExtra(EXTRA_LOGICAL_SERVER_ID, logicalServerId)
                     setPackage(packageName)
                 })) return@launch
-                if (state == VpnTunnelState.UP) updateNotification(state.name)
+                // Re-posting the notification every second kept system_server busy and made
+                // aggressive OEM battery managers treat the tunnel as a background hog.
+                if (state == VpnTunnelState.UP &&
+                    SystemClock.elapsedRealtime() - lastNotificationAt >= NOTIFICATION_REFRESH_MS
+                ) {
+                    withContext(Dispatchers.Main) { updateNotification(state.name) }
+                }
             }
         }
     }
@@ -712,15 +932,17 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
         return NotificationCompat.Builder(this, if (notificationsEnabled) CHANNEL_ID else CHANNEL_SILENT_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
-            .setContentText(lastSpeed)
+            .setContentText(if (stateName == VpnTunnelState.UP.name) lastSpeed else null)
             .setContentIntent(contentIntent)
             .setOngoing(stateName != VpnTunnelState.DOWN.name)
+            .setOnlyAlertOnce(true)
             .setShowWhen(false)
             .addAction(0, getString(R.string.notification_action_disconnect), disconnectIntent)
             .build()
     }
 
     private fun updateNotification(stateName: String, ensureForeground: Boolean = false) {
+        lastNotificationAt = SystemClock.elapsedRealtime()
         if (!shouldShowNotification(stateName, notificationsEnabled)) {
             // startForegroundService() still requires one foreground promotion. Satisfy it for
             // a disabled notification setting, then remove the notification completely.
@@ -761,7 +983,12 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
     override fun serviceStop() {
         if (closingCommandServer.get()) return
         scope.launch {
-            if (!closingCommandServer.get()) stopTunnel(manual = false)
+            if (closingCommandServer.get() || manualDisconnect) return@launch
+            if (state != VpnTunnelState.UP && !connecting) return@launch
+            // The engine stopped on its own. Treat it like any other failure rather than as a
+            // user disconnect, so the tunnel comes back.
+            ProtonLogger.w(TAG, "amnezia-box stopped by itself; recovering")
+            handleEngineFailure(permanent = false, reason = FAILURE_ENGINE)
         }
     }
     override fun serviceReload() = Unit
@@ -782,32 +1009,39 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
             ProtonLogger.d("awgbox", logMessage)
         }
         localNetShield.recordEngineLog(logMessage)
+        recordEngineEvent(logMessage)
         observeHandshake(logMessage)
         observeTransportHealth(logMessage)
     }
 
+    /** Copies the engine messages that explain connectivity into the on-device event log. */
+    private fun recordEngineEvent(message: String) {
+        val normalized = message.lowercase(Locale.ROOT)
+        val relevant = ENGINE_EVENT_MARKERS.firstOrNull { it in normalized } ?: return
+        VpnEventLog.log("engine: $relevant")
+    }
+
+    /**
+     * Follows WireGuard's handshakes. The first answered handshake verifies the tunnel. Later, an
+     * initiation that stays unanswered (WireGuard retries every 5 s) means the server or the path
+     * to it is gone, and [startHealthMonitor] turns that into a restart. Periodic rekeying no
+     * longer flips a working tunnel back to "verifying" every two minutes.
+     */
     private fun observeHandshake(message: String) {
-        if (!verificationMode.handshakeOnly) return
+        if (verificationMode == ConnectionVerificationMode.DISABLED) return
         when {
             isAwgHandshakeSuccess(message) -> {
                 handshakeObserved = true
+                pendingInitiationSince = 0L
                 scope.launch {
-                    if (verificationMode.handshakeOnly && state == VpnTunnelState.UP && !verified) {
+                    if (state == VpnTunnelState.UP && !verified) {
                         ProtonLogger.i(TAG, "AmneziaWG handshake confirmed")
                         markVerified()
                     }
                 }
             }
-            isAwgHandshakeAttempt(message) && state == VpnTunnelState.UP && verified -> {
-                scope.launch {
-                    if (!verificationMode.handshakeOnly || state != VpnTunnelState.UP || !verified) return@launch
-                    ProtonLogger.w(TAG, "AmneziaWG started a new handshake; opening verification window")
-                    handshakeObserved = false
-                    verified = false
-                    sendState(VpnTunnelState.UP)
-                    updateNotification(VpnTunnelState.UP.name)
-                    startHandshakeVerificationWatchdog(lifecycleGeneration.get())
-                }
+            isAwgHandshakeAttempt(message) -> {
+                if (pendingInitiationSince == 0L) pendingInitiationSince = SystemClock.elapsedRealtime()
             }
         }
     }
@@ -817,33 +1051,45 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
         handshakeVerificationJob = scope.launch {
             delay(handshakeTimeoutSeconds.toLong().seconds)
             if (lifecycleGeneration.get() != generation || verified || manualDisconnect ||
-                !verificationMode.handshakeOnly || state != VpnTunnelState.UP
+                verificationMode == ConnectionVerificationMode.DISABLED || state != VpnTunnelState.UP
             ) return@launch
-            ProtonLogger.w(TAG, "No AmneziaWG handshake in $handshakeTimeoutSeconds seconds; reconnecting to the same server")
-            restartTunnelAfterHandshakeTimeout()
+            ProtonLogger.w(TAG, "No AmneziaWG handshake in $handshakeTimeoutSeconds seconds")
+            onTunnelUnresponsive(FAILURE_HANDSHAKE_TIMEOUT)
         }
     }
 
-    private fun restartTunnelAfterHandshakeTimeout() {
-        val retry = lastConnectIntent?.let(::Intent) ?: return
-        retry.putExtra(EXTRA_IS_RECONNECTING, true)
-        startTunnel(retry)
+    private fun startHealthMonitor(generation: Long) {
+        stopHealthMonitor()
+        if (verificationMode == ConnectionVerificationMode.DISABLED) return
+        healthJob = scope.launch {
+            while (isActive) {
+                delay(HEALTH_TICK_MS)
+                if (lifecycleGeneration.get() != generation || state != VpnTunnelState.UP || connecting) return@launch
+                val since = pendingInitiationSince
+                if (verified && since != 0L && SystemClock.elapsedRealtime() - since > HANDSHAKE_STALL_MS) {
+                    ProtonLogger.w(TAG, "WireGuard handshake unanswered for ${HANDSHAKE_STALL_MS / 1000}s")
+                    onTunnelUnresponsive(FAILURE_HANDSHAKE_STALLED)
+                    return@launch
+                }
+            }
+        }
     }
 
+    private fun stopHealthMonitor() {
+        healthJob?.cancel()
+        healthJob = null
+    }
+
+    /**
+     * Proxy-chain outbounds (VLESS/VMess over TCP) do not show up in WireGuard's handshake log,
+     * so their failures are still counted from engine errors. AWG itself is covered by the
+     * handshake monitor; counting its transient errors during a cell handover used to restart a
+     * tunnel that was about to recover by itself.
+     */
     private fun observeTransportHealth(message: String) {
-        if (verificationMode.handshakeOnly || !failureDetectionEnabled ||
-            verificationMode == ConnectionVerificationMode.DISABLED
-        ) return
+        if (!failureDetectionEnabled || verificationMode == ConnectionVerificationMode.DISABLED) return
         val normalized = message.lowercase(Locale.ROOT)
-        when {
-            isSuccessfulTransportActivity(normalized) -> scope.launch { resetTransportFailures() }
-            isTransportFailure(normalized) -> scope.launch { recordTransportFailure(normalized) }
-        }
-    }
-
-    private fun isSuccessfulTransportActivity(message: String): Boolean {
-        return ("dns: exchanged " in message && "exchange failed" !in message) ||
-            "received handshake response" in message
+        if (isTransportFailure(normalized)) scope.launch { recordTransportFailure() }
     }
 
     private fun isTransportFailure(message: String): Boolean {
@@ -853,14 +1099,11 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
         val transportError = "connection reset by peer" in message ||
             "broken pipe" in message ||
             "network is unreachable" in message
-        val relevantPath = "dns: exchange failed" in message ||
-            "outbound/vless" in message ||
-            "outbound/vmess" in message ||
-            "endpoint/awg" in message
+        val relevantPath = "outbound/vless" in message || "outbound/vmess" in message
         return relevantPath && (timedOut || transportError)
     }
 
-    private fun recordTransportFailure(message: String) {
+    private fun recordTransportFailure() {
         if (state != VpnTunnelState.UP || connecting || manualDisconnect) return
 
         val now = SystemClock.elapsedRealtime()
@@ -875,34 +1118,12 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
         )
 
         if (transportFailureCount < verificationMode.failureThreshold) return
-        if (!autoReconnectEnabled) return
         if (lastHealthReconnectAt != 0L && now - lastHealthReconnectAt < verificationMode.reconnectCooldownMs) return
+        if (!vpnNetworkMonitor.hasUsableUnderlyingNetwork()) return
 
         lastHealthReconnectAt = now
         transportFailureCount = 0
-        restartTunnelAfterHealthFailure(message)
-    }
-
-    private fun restartTunnelAfterHealthFailure(reason: String) {
-        val config = lastConfig ?: return
-        if (connecting || manualDisconnect) return
-
-        ProtonLogger.w(TAG, "Tunnel transport is unresponsive; reconnecting")
-        ProtonLogger.addSentryBreadcrumb(
-            TAG,
-            "Automatic reconnect after transport health failure: ${reason.take(160)}",
-            "WARNING",
-            "vpn.health"
-        )
-        val retry = Intent(this, ProtonVpnService::class.java).apply {
-            action = ACTION_CONNECT
-            putExtra(EXTRA_CONFIG, config)
-            putExtra(EXTRA_LOGICAL_SERVER_ID, logicalServerId)
-            putExtra(EXTRA_NOTIFICATIONS_ENABLED, notificationsEnabled)
-            putExtra(EXTRA_KILL_SWITCH_ENABLED, killSwitchEnabled)
-            putExtra(EXTRA_IS_RECONNECTING, true)
-        }
-        startTunnel(retry)
+        onTunnelUnresponsive(FAILURE_TRANSPORT)
     }
 
     private fun resetTransportFailures() {
@@ -911,7 +1132,8 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
     }
 
     override fun onRevoke() {
-        stopTunnel(manual = true)
+        // Another VPN took over or the user revoked the permission: that is a real stop.
+        stopTunnel()
         super.onRevoke()
     }
 
@@ -919,8 +1141,10 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
         runCatching { unregisterReceiver(settingsReceiver) }
         lifecycleGeneration.incrementAndGet()
         reconnectJob?.cancel()
+        appConfigWaitJob?.cancel()
         handshakeVerificationJob?.cancel()
         handshakeVerificationJob = null
+        stopHealthMonitor()
         engineJob?.cancel()
         shutdownJob?.cancel()
         // Never race CloseService against blocking StartOrReloadService; process teardown will
@@ -929,6 +1153,7 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
         stopTrafficUpdates()
         removeNotification()
         closeEngine()
+        platform.release()
         scope.cancel()
         super.onDestroy()
     }

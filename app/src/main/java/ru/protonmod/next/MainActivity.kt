@@ -36,7 +36,6 @@ import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -53,7 +52,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import ru.protonmod.next.data.local.SettingsManager
 import ru.protonmod.next.ota.OTAUpdateScreen
-import ru.protonmod.next.ui.components.AiProposalPanel
 import ru.protonmod.next.ui.components.LiquidGlassBottomBar
 import ru.protonmod.next.ui.components.ReconnectRequiredDialog
 import ru.protonmod.next.ui.nav.MainTarget
@@ -61,7 +59,6 @@ import ru.protonmod.next.ui.nav.Screen
 import ru.protonmod.next.ui.nav.appNavGraph
 import ru.protonmod.next.ui.screens.WelcomeScreen
 import ru.protonmod.next.ui.screens.settings.PolicyAcceptanceScreen
-import ru.protonmod.next.ui.screens.ai.AiOverlayViewModel
 import ru.protonmod.next.ui.theme.AppTheme
 import ru.protonmod.next.ui.theme.ProtonNextTheme
 import ru.protonmod.next.ui.utils.ProvideDeviceType
@@ -182,16 +179,10 @@ fun OTAUpdateOverlay(
 fun ProtonNextAppNavHost(
     modifier: Modifier = Modifier,
     viewModel: MainViewModel = hiltViewModel(),
-    aiViewModel: AiOverlayViewModel = hiltViewModel(),
     onNavControllerReady: (NavHostController) -> Unit = {}
 ) {
     val startDestination by viewModel.startDestination.collectAsStateWithLifecycle()
     val session by viewModel.session.collectAsStateWithLifecycle()
-    val aiEnabled by aiViewModel.aiEnabled.collectAsStateWithLifecycle(initialValue = false)
-    val aiModeActive by aiViewModel.isVisible.collectAsStateWithLifecycle()
-    val isAiProcessing by aiViewModel.isProcessing.collectAsStateWithLifecycle()
-    val aiStatusMessage by aiViewModel.statusMessage.collectAsStateWithLifecycle()
-    val aiProposal by aiViewModel.proposal.collectAsStateWithLifecycle()
 
     if (startDestination.isEmpty()) return
 
@@ -292,17 +283,6 @@ fun ProtonNextAppNavHost(
             appNavGraph(navController = navController)
         }
 
-        AiProposalPanel(
-            proposal = aiProposal,
-            isProcessing = isAiProcessing,
-            onApply = aiViewModel::applyProposal,
-            onDismiss = aiViewModel::dismissProposal,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 112.dp)
-                .windowInsetsPadding(WindowInsets.navigationBars),
-        )
-
         AnimatedVisibility(
             visible = currentTarget != null,
             enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
@@ -311,14 +291,6 @@ fun ProtonNextAppNavHost(
         ) {
             LiquidGlassBottomBar(
                 selectedTarget = currentTarget,
-                aiEnabled = aiEnabled,
-                aiModeActive = aiModeActive,
-                isAiProcessing = isAiProcessing,
-                aiStatusMessage = aiStatusMessage,
-                onAiModeToggle = { active ->
-                    if (active) aiViewModel.show() else aiViewModel.hide()
-                },
-                onAiSubmit = aiViewModel::submitQuery,
                 navigateTo = { target ->
                     val route = when (target) {
                         MainTarget.Home -> Screen.Home.route

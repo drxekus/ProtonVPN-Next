@@ -19,53 +19,27 @@ package ru.protonmod.next.ui.components
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.*
-import androidx.compose.ui.graphics.drawOutline
-import androidx.compose.ui.graphics.drawscope.ContentDrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.node.DrawModifierNode
-import androidx.compose.ui.node.ModifierNodeElement
-import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.collections.immutable.ImmutableSet
 import kotlinx.collections.immutable.persistentSetOf
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
-import ru.protonmod.next.R
 import ru.protonmod.next.ui.icons.ProtonIcons
 import ru.protonmod.next.ui.nav.MainTarget
 import ru.protonmod.next.ui.theme.ProtonNextTheme
 import ru.protonmod.next.ui.theme.liquidGlass
 import ru.protonmod.next.ui.utils.isTablet
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun LiquidGlassBottomBar(
     selectedTarget: MainTarget?,
@@ -73,20 +47,11 @@ fun LiquidGlassBottomBar(
     modifier: Modifier = Modifier,
     showCountries: Boolean = true,
     showGateways: Boolean = true,
-    notificationDots: ImmutableSet<MainTarget> = persistentSetOf(),
-    aiEnabled: Boolean = false,
-    aiModeActive: Boolean = false,
-    isAiProcessing: Boolean = false,
-    aiStatusMessage: String? = null,
-    onAiModeToggle: (Boolean) -> Unit = {},
-    onAiSubmit: (String) -> Unit = {}
+    notificationDots: ImmutableSet<MainTarget> = persistentSetOf()
 ) {
     val isTablet = isTablet()
-    val haptic = LocalHapticFeedback.current
-    val keyboardController = LocalSoftwareKeyboardController.current
 
     val glassShape = RoundedCornerShape(32.dp)
-    var aiQuery by remember { mutableStateOf("") }
 
     val targets = mutableListOf(MainTarget.Home)
     if (showCountries) targets.add(MainTarget.Countries)
@@ -99,306 +64,53 @@ fun LiquidGlassBottomBar(
             .padding(bottom = 24.dp),
         contentAlignment = Alignment.Center
     ) {
-        // Gemini-style intro glow shown briefly when AI mode opens. Kept inside the
-        // Box content lambda so this composable has a single top-level emitter.
-        var showGeminiAnimation by remember { mutableStateOf(false) }
-        LaunchedEffect(aiModeActive) {
-            if (aiModeActive) {
-                showGeminiAnimation = true
-                delay(1200)
-                showGeminiAnimation = false
-            } else {
-                // Closing AI mode (e.g. tapping the close button right after a long press)
-                // cancels the coroutine above before its reset runs, so clear it here too;
-                // otherwise the border keeps shimmering indefinitely.
-                showGeminiAnimation = false
-            }
-        }
-
         Box(
             modifier = Modifier
                 .widthIn(max = if (isTablet) 400.dp else 600.dp)
                 .padding(horizontal = 24.dp)
-                .geminiBorder(
-                    shape = glassShape,
-                    isEnabled = showGeminiAnimation || isAiProcessing
-                )
                 .liquidGlass(
                     shape = glassShape,
                     alpha = 0.85f,
                     shadowElevation = 15.dp
                 )
         ) {
-            AnimatedContent(
-                targetState = aiModeActive,
-                transitionSpec = {
-                    (fadeIn() + scaleIn()).togetherWith(fadeOut() + scaleOut())
-                },
-                label = "barContent"
-            ) { active ->
-                if (active) {
-                    AiInputRow(
-                        query = aiQuery,
-                        onQueryChange = { aiQuery = it },
-                        isProcessing = isAiProcessing,
-                        statusMessage = aiStatusMessage,
-                        onSubmit = {
-                            onAiSubmit(it)
-                            aiQuery = ""
-                            keyboardController?.hide()
-                        },
-                        onClose = { onAiModeToggle(false) }
-                    )
-                } else {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(70.dp)
-                            .combinedClickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                onClick = {},
-                                onLongClick = {
-                                    if (aiEnabled) {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        onAiModeToggle(true)
-                                    }
-                                }
-                            ),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        targets.forEach { target ->
-                            NavigationItem(
-                                target = target,
-                                isSelected = target == selectedTarget,
-                                hasNotification = notificationDots.contains(target),
-                                onNavigate = { navigateTo(target) },
-                                aiEnabled = aiEnabled,
-                                onAiToggle = { onAiModeToggle(true) },
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun AiInputRow(
-    query: String,
-    onQueryChange: (String) -> Unit,
-    isProcessing: Boolean,
-    statusMessage: String?,
-    onSubmit: (String) -> Unit,
-    onClose: () -> Unit
-) {
-    val colors = ProtonNextTheme.colors
-    val displayMessage = when (statusMessage) {
-        "ai_success" -> stringResource(R.string.ai_success)
-        "ai_error_no_key" -> stringResource(R.string.ai_error_no_key)
-        else -> statusMessage
-    }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 82.dp)
-            .padding(start = 14.dp, end = 10.dp, top = 10.dp, bottom = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .size(42.dp)
-                .background(colors.brandNorm.copy(alpha = 0.14f), CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = ProtonIcons.MagicProtonWand,
-                contentDescription = null,
-                tint = colors.brandNorm,
-                modifier = Modifier.size(22.dp)
-            )
-        }
-
-        Spacer(Modifier.width(12.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = stringResource(R.string.ai_assistant_label),
-                style = MaterialTheme.typography.labelSmall,
-                color = colors.brandNorm
-            )
-            Spacer(Modifier.height(2.dp))
-            Box(modifier = Modifier.fillMaxWidth()) {
-                if (query.isEmpty()) {
-                    Text(
-                        text = displayMessage ?: stringResource(R.string.ai_input_hint),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = when (statusMessage) {
-                            "ai_success" -> colors.notificationSuccess
-                            null -> colors.textWeak
-                            else -> colors.notificationError
-                        },
-                        maxLines = 1
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(70.dp)
+                    // Swallows taps that land between the items so they do not reach
+                    // the content scrolled underneath the bar.
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = {}
+                    ),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                targets.forEach { target ->
+                    NavigationItem(
+                        target = target,
+                        isSelected = target == selectedTarget,
+                        hasNotification = notificationDots.contains(target),
+                        onNavigate = { navigateTo(target) },
+                        modifier = Modifier.weight(1f)
                     )
                 }
-                BasicTextField(
-                    value = query,
-                    onValueChange = onQueryChange,
-                    modifier = Modifier.fillMaxWidth(),
-                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = colors.textNorm),
-                    cursorBrush = Brush.verticalGradient(listOf(colors.brandNorm, colors.brandNorm)),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                    keyboardActions = KeyboardActions(onSend = { if (query.isNotBlank()) onSubmit(query) })
-                )
-            }
-        }
-
-        Spacer(Modifier.width(8.dp))
-
-        FilledIconButton(
-            onClick = { if (query.isNotBlank()) onSubmit(query) else onClose() },
-            enabled = !isProcessing,
-            modifier = Modifier.size(42.dp),
-            colors = IconButtonDefaults.filledIconButtonColors(
-                containerColor = if (query.isNotBlank()) colors.brandNorm else colors.backgroundSecondary,
-                contentColor = if (query.isNotBlank()) colors.textInverted else colors.iconWeak
-            )
-        ) {
-            if (isProcessing) {
-                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = colors.brandNorm)
-            } else {
-                Icon(
-                    imageVector = if (query.isNotBlank()) ProtonIcons.PaperPlane else ProtonIcons.Cross,
-                    contentDescription = null,
-                    modifier = Modifier.size(19.dp)
-                )
             }
         }
     }
 }
 
-private fun Modifier.geminiBorder(
-    shape: Shape,
-    isEnabled: Boolean,
-    strokeWidth: Dp = 2.5.dp
-): Modifier = this then GeminiBorderElement(shape, isEnabled, strokeWidth)
-
-private data class GeminiBorderElement(
-    val shape: Shape,
-    val isEnabled: Boolean,
-    val strokeWidth: Dp,
-) : ModifierNodeElement<GeminiBorderNode>() {
-    override fun create(): GeminiBorderNode = GeminiBorderNode(shape, strokeWidth, isEnabled)
-
-    override fun update(node: GeminiBorderNode) {
-        node.shape = shape
-        node.strokeWidth = strokeWidth
-        node.setEnabled(isEnabled)
-    }
-}
-
-private class GeminiBorderNode(
-    var shape: Shape,
-    var strokeWidth: Dp,
-    initialEnabled: Boolean,
-) : Modifier.Node(), DrawModifierNode {
-    private var isEnabled = initialEnabled
-    private val intensity = Animatable(0f)
-    private val offset = Animatable(0f)
-    private var sweepJob: Job? = null
-
-    override fun onAttach() {
-        if (isEnabled) fadeIn()
-    }
-
-    fun setEnabled(enabled: Boolean) {
-        if (enabled == isEnabled) return
-        isEnabled = enabled
-        if (enabled) fadeIn() else fadeOut()
-    }
-
-    // Fade the glow in and out instead of snapping it on/off. The fade-out is a bit
-    // slower so the border eases away gently rather than blinking off.
-    private fun fadeIn() {
-        startSweep()
-        coroutineScope.launch {
-            intensity.animateTo(1f, tween(durationMillis = 500, easing = FastOutSlowInEasing))
-        }
-    }
-
-    private fun fadeOut() {
-        coroutineScope.launch {
-            intensity.animateTo(0f, tween(durationMillis = 850, easing = FastOutSlowInEasing))
-            // Once fully faded out the border is invisible, so stop the sweep
-            // entirely instead of letting it run indefinitely.
-            stopSweep()
-        }
-    }
-
-    // The sweep must loop seamlessly. With TileMode.Mirror the gradient pattern only
-    // repeats identically every full period, which is 2x the 600px gradient vector = 1200px.
-    // Wrapping the offset at anything other than a multiple of 1200 lands mid-pattern and
-    // the colors visibly jump on restart. LinearEasing keeps the speed constant across the seam.
-    private fun startSweep() {
-        if (sweepJob?.isActive == true) return
-        sweepJob = coroutineScope.launch {
-            while (isActive) {
-                offset.snapTo(0f)
-                offset.animateTo(1200f, tween(durationMillis = 2600, easing = LinearEasing))
-            }
-        }
-    }
-
-    private fun stopSweep() {
-        sweepJob?.cancel()
-        sweepJob = null
-    }
-
-    override fun ContentDrawScope.draw() {
-        drawContent()
-        val alpha = intensity.value
-        // Nothing visible: skip drawing the border entirely.
-        if (alpha <= 0.001f) return
-
-        drawOutline(
-            outline = shape.createOutline(size, layoutDirection, this),
-            brush = Brush.linearGradient(
-                colors = listOf(
-                    Color(0xFF4285F4),
-                    Color(0xFF9B72F3),
-                    Color(0xFF34A853),
-                    Color(0xFFFBBC05),
-                    Color(0xFFEA4335),
-                    Color(0xFF4285F4)
-                ),
-                start = Offset(offset.value, offset.value),
-                end = Offset(offset.value + 600f, offset.value + 600f),
-                tileMode = TileMode.Mirror
-            ),
-            style = Stroke(width = strokeWidth.toPx()),
-            alpha = alpha
-        )
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun NavigationItem(
     target: MainTarget,
     isSelected: Boolean,
     hasNotification: Boolean,
     onNavigate: () -> Unit,
-    aiEnabled: Boolean,
-    onAiToggle: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = ProtonNextTheme.colors
-    val haptic = LocalHapticFeedback.current
     val activeColor = colors.navigationActive
     val inactiveColor = colors.iconWeak
 
@@ -414,16 +126,10 @@ private fun NavigationItem(
         contentAlignment = Alignment.Center,
         modifier = modifier
             .clip(CircleShape)
-            .combinedClickable(
+            .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
-                onClick = { onNavigate() },
-                onLongClick = {
-                    if (aiEnabled) {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onAiToggle()
-                    }
-                }
+                onClick = onNavigate
             )
     ) {
         if (isSelected) {

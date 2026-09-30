@@ -36,6 +36,7 @@ import ru.protonmod.next.vpn.VpnTunnelState
 import ru.protonmod.next.MainActivity
 import ru.protonmod.next.R
 import ru.protonmod.next.data.local.ProfileDao
+import ru.protonmod.next.data.local.RecentConnectionDao
 import ru.protonmod.next.data.local.SessionDao
 import ru.protonmod.next.data.local.SettingsManager
 import ru.protonmod.next.data.local.VpnProfileEntity
@@ -64,6 +65,9 @@ class VpnTileService : TileService() {
 
     @Inject
     lateinit var profileDao: ProfileDao
+
+    @Inject
+    lateinit var recentConnectionDao: RecentConnectionDao
 
     @Inject
     lateinit var connectedServerState: ConnectedServerState
@@ -159,17 +163,18 @@ class VpnTileService : TileService() {
 
         when (strategy) {
             "recent" -> {
-                // Connect to the very first available server
-                val bestServer = servers.minByOrNull { it.averageLoad }
-                if (bestServer != null) initiateConnection(bestServer)
+                // The most recent server, as on the dashboard; the fastest one only when the
+                // recent server is gone or offline.
+                val recentId = recentConnectionDao.getRecentConnections().first().firstOrNull()?.serverId
+                val recent = servers.find { it.id == recentId }?.takeIf(ServerSelector::isUsable)
+                if (recent != null) initiateConnection(recent) else connectToFastest(servers)
             }
             "server" -> {
                 val target = servers.find { it.id == targetId }
                 if (target != null) {
                     initiateConnection(target)
                 } else {
-                    val bestServer = servers.minByOrNull { it.averageLoad }
-                    if (bestServer != null) initiateConnection(bestServer)
+                    connectToFastest(servers)
                 }
             }
             "profile" -> {
@@ -177,9 +182,8 @@ class VpnTileService : TileService() {
                 if (profile != null) {
                     val targetServer = findBestServerForProfile(profile, servers)
                     if (targetServer != null) {
-                        val physicalServer = targetServer.servers.filter { it.status == 1 }.minByOrNull { it.load }
-                            ?: targetServer.servers.minByOrNull { it.load }
-                        
+                        val physicalServer = ServerSelector.pickPhysical(targetServer)
+
                         if (physicalServer != null) {
                             var obfuscationParams: AmneziaVpnManager.ObfuscationParams? = null
                             if (profile.isObfuscationEnabled && profile.obfuscationProfileId != null) {
@@ -209,27 +213,30 @@ class VpnTileService : TileService() {
                         }
                     }
                 } else {
-                    val bestServer = servers.minByOrNull { it.averageLoad }
-                    if (bestServer != null) initiateConnection(bestServer)
+                    connectToFastest(servers)
                 }
             }
-            else -> {
-                val bestServer = servers.minByOrNull { it.averageLoad }
-                if (bestServer != null) initiateConnection(bestServer)
-            }
+            else -> connectToFastest(servers)
         }
+    }
+
+    private suspend fun connectToFastest(servers: List<LogicalServer>) {
+        ServerSelector.fastest(servers)?.let { initiateConnection(it, failoverScope = ServerScope.AnyServer) }
     }
 
     private fun findBestServerForProfile(profile: VpnProfileEntity, allServers: List<LogicalServer>): LogicalServer? {
         return vpnRepository.findBestServerForProfile(profile, allServers)
     }
 
-    private suspend fun initiateConnection(server: LogicalServer) {
+    private suspend fun initiateConnection(server: LogicalServer, failoverScope: ServerScope? = null) {
         val session = sessionDao.getSession() ?: return
-        val physicalServer = server.servers.filter { it.status == 1 }.minByOrNull { it.load }
-            ?: server.servers.minByOrNull { it.load } ?: return
+        val physicalServer = ServerSelector.pickPhysical(server) ?: return
 
-        amneziaVpnManager.connect(server.id, physicalServer, session, logicalServer = server)
+        amneziaVpnManager.connect(
+            server.id, physicalServer, session,
+            logicalServer = server,
+            failoverScope = failoverScope
+        )
     }
 
     private suspend fun updateTile(

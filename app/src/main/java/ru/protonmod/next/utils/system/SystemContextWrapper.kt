@@ -64,7 +64,18 @@ class SystemContextWrapper @Inject constructor(
             putStringArrayListExtra(ProtonVpnService.EXTRA_EXCLUDED_APPS, ArrayList(excludedApps))
             putStringArrayListExtra(ProtonVpnService.EXTRA_EXCLUDED_IPS, ArrayList(excludedIps))
         }
-        ContextCompat.startForegroundService(context, intent)
+        try {
+            ContextCompat.startForegroundService(context, intent)
+        } catch (error: IllegalStateException) {
+            // Android 12+ refuses foreground-service starts from the background. That only
+            // happens here when the app answers the running VPN service (failover or a
+            // background reconnect), so hand the configuration to it directly instead.
+            ProtonLogger.w(TAG, "Foreground start refused (${error.javaClass.simpleName}); delivering to the running service")
+            sendQuietly(Intent(intent).apply {
+                component = null
+                setPackage(context.packageName)
+            })
+        }
     }
 
     fun stopVpnService() {

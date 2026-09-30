@@ -22,10 +22,16 @@ import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -35,6 +41,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
@@ -88,6 +95,8 @@ fun SettingRowWithIcon(
     enabled: Boolean = true,
     titleColor: Color = ProtonNextTheme.colors.textNorm,
     onClick: (() -> Unit)? = null,
+    /** Longer explanation shown in a dialog behind an info icon; null hides the icon. */
+    info: String? = null,
     trailingContent: (@Composable () -> Unit)? = null
 ) {
     val colors = ProtonNextTheme.colors
@@ -161,6 +170,10 @@ fun SettingRowWithIcon(
             }
         }
 
+        if (info != null) {
+            SettingInfoButton(title = title, info = info)
+        }
+
         if (trailingContent != null) {
             trailingContent()
         } else if (onClick != null) {
@@ -184,7 +197,9 @@ fun SettingToggleRow(
     icon: ImageVector? = null,
     @DrawableRes iconRes: Int? = null,
     iconTint: Boolean = true,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    /** Longer explanation shown in a dialog behind an info icon; null hides the icon. */
+    info: String? = null
 ) {
     val colors = ProtonNextTheme.colors
     SettingRowWithIcon(
@@ -196,6 +211,7 @@ fun SettingToggleRow(
         enabled = enabled,
         onClick = { onCheckedChange(!checked) },
         modifier = modifier,
+        info = info,
         trailingContent = {
             Switch(
                 checked = checked,
@@ -211,6 +227,107 @@ fun SettingToggleRow(
             )
         }
     )
+}
+
+/**
+ * Small info icon that explains a setting in a dialog. It is its own click target, so a tap on
+ * it never opens, toggles or selects the row it sits in.
+ */
+@Composable
+fun SettingInfoButton(
+    title: String,
+    info: String,
+    modifier: Modifier = Modifier
+) {
+    val colors = ProtonNextTheme.colors
+    var showDialog by rememberSaveable { mutableStateOf(false) }
+    val description = stringResource(R.string.settings_info_button_desc)
+
+    Box(
+        modifier = modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .clickable(
+                onClickLabel = description,
+                role = Role.Button,
+                onClick = { showDialog = true }
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = ProtonIcons.InfoCircle,
+            contentDescription = description,
+            tint = colors.iconWeak,
+            modifier = Modifier.size(20.dp)
+        )
+    }
+
+    if (showDialog) {
+        SettingInfoDialog(
+            title = title,
+            info = info,
+            onDismiss = { showDialog = false }
+        )
+    }
+}
+
+@Composable
+fun SettingInfoDialog(
+    title: String,
+    info: String,
+    onDismiss: () -> Unit
+) {
+    val colors = ProtonNextTheme.colors
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Text(
+                text = info,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.verticalScroll(rememberScrollState())
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(android.R.string.ok), color = colors.brandNorm)
+            }
+        },
+        containerColor = colors.backgroundSecondary,
+        titleContentColor = colors.textNorm,
+        textContentColor = colors.textWeak
+    )
+}
+
+@Composable
+fun InfoCard(
+    text: String,
+    modifier: Modifier = Modifier
+) {
+    val colors = ProtonNextTheme.colors
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .liquidGlass(shape = RoundedCornerShape(20.dp), alpha = 0.3f, shadowElevation = 0.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = ProtonIcons.InfoCircle,
+                contentDescription = null,
+                tint = colors.brandNorm,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textNorm
+            )
+        }
+    }
 }
 
 @Composable

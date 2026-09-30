@@ -71,7 +71,7 @@ class ProfilesViewModelTest {
         LogicalServer(
             id = "us_1", name = "US-FREE-1", tier = 0, features = 0,
             entryCountry = "US", exitCountry = "US", city = "New York",
-            averageLoad = 10, servers = listOf(PhysicalServer(id = "p1", domain = "d1", status = 1, load = 10))
+            averageLoad = 10, servers = listOf(PhysicalServer(id = "p1", domain = "d1", status = 1, wgPublicKey = "pk", load = 10))
         )
     )
 
@@ -144,7 +144,7 @@ class ProfilesViewModelTest {
         val uiProfile = VpnProfileUiModel(id = "p_1", name = "My Profile", targetCountry = "US")
         viewModel.connectWithProfile(uiProfile)
         advanceUntilIdle()
-        verify(amneziaVpnManager).connect(eq("us_1"), any(), any(), anyOrNull(), anyOrNull(), anyOrNull(), anyOrNull(), any())
+        verify(amneziaVpnManager).connect(eq("us_1"), any(), any(), anyOrNull(), anyOrNull(), anyOrNull(), anyOrNull(), any(), anyOrNull())
         
         collectJob.cancel()
     }

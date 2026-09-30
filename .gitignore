@@ -24,6 +24,8 @@ captures/
 # Android & Desktop build outputs (APKs, bundles, libraries)
 *.apk
 *.aar
+# Records which local patches the AWGBox AAR was built with (scripts/build-awgbox-lib.sh)
+*.aar.patches
 *.aab
 app/stable/
 desktop/libs/

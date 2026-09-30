@@ -32,7 +32,10 @@ import kotlinx.coroutines.withContext
 import ru.protonmod.next.vpn.VpnTunnelState
 import ru.protonmod.next.data.local.RecentConnectionDao
 import ru.protonmod.next.data.local.SessionDao
+import ru.protonmod.next.data.local.SessionEntity
 import ru.protonmod.next.data.local.SettingsManager
+import ru.protonmod.next.data.network.LogicalServer
+import ru.protonmod.next.data.network.PhysicalServer
 import ru.protonmod.next.data.repository.VpnRepository
 import ru.protonmod.next.di.ApplicationScope
 import javax.inject.Inject
@@ -103,45 +106,62 @@ class VpnAutomationManager @Inject constructor(
     }
 
     private suspend fun triggerAutoConnect() {
-        // Don't auto-connect if paused
+        val target = preferredTarget("triggerAutoConnect") ?: return
+        ProtonLogger.i(TAG, "triggerAutoConnect: Initiating connection to ${target.logical.name}")
+        amneziaVpnManager.connect(
+            target.logical.id, target.physical, target.session,
+            logicalServer = target.logical,
+            failoverScope = target.scope
+        )
+    }
+
+    /**
+     * Called when the VPN service, running without the app, needs a fresh configuration: Always-on
+     * VPN started it with nothing saved, or its saved tunnel no longer answers. Replays the last
+     * connection of this process when there is one, otherwise the most recent server.
+     */
+    suspend fun reconnectForService() {
+        if (amneziaVpnManager.reconnectCurrentForService()) return
+        val target = preferredTarget("reconnectForService") ?: return
+        ProtonLogger.i(TAG, "reconnectForService: connecting to ${target.logical.name}")
+        amneziaVpnManager.connectForService(target.logical, target.physical, target.session, target.scope)
+    }
+
+    private class Target(
+        val logical: LogicalServer,
+        val physical: PhysicalServer,
+        val session: SessionEntity,
+        val scope: ServerScope?,
+    )
+
+    /** The most recent server if it is online, otherwise the fastest one. */
+    private suspend fun preferredTarget(caller: String): Target? {
         val pauseEndTime = settingsManager.pauseEndTime.first()
         if (pauseEndTime > System.currentTimeMillis()) {
-            ProtonLogger.d(TAG, "triggerAutoConnect: Still paused until $pauseEndTime. Skipping.")
-            return
+            ProtonLogger.d(TAG, "$caller: Still paused until $pauseEndTime. Skipping.")
+            return null
         }
 
         val session = sessionDao.getSession() ?: run {
-            ProtonLogger.w(TAG, "triggerAutoConnect: No active session found.")
-            return
+            ProtonLogger.w(TAG, "$caller: No active session found.")
+            return null
         }
-        
+
         val servers = vpnRepository.getCachedServers()
         if (servers.isEmpty()) {
-            ProtonLogger.w(TAG, "triggerAutoConnect: Server cache is empty.")
-            return
+            ProtonLogger.w(TAG, "$caller: Server cache is empty.")
+            return null
         }
 
-        val recent = recentConnectionDao.getRecentConnections().first().firstOrNull()
-        val targetServer = if (recent != null) {
-            servers.find { it.id == recent.serverId } ?: servers.minByOrNull { it.averageLoad }
-        } else {
-            servers.minByOrNull { it.averageLoad }
+        val recentId = recentConnectionDao.getRecentConnections().first().firstOrNull()?.serverId
+        val recent = servers.find { it.id == recentId }?.takeIf(ServerSelector::isUsable)
+        val logical = recent ?: ServerSelector.fastest(servers) ?: run {
+            ProtonLogger.w(TAG, "$caller: No online server available.")
+            return null
         }
-
-        if (targetServer == null) {
-            ProtonLogger.w(TAG, "triggerAutoConnect: Could not determine target server.")
-            return
-        }
-
-        val physicalServer = targetServer.servers.filter { it.status == 1 }.minByOrNull { it.load }
-            ?: targetServer.servers.minByOrNull { it.load }
-
-        if (physicalServer == null) {
-            ProtonLogger.w(TAG, "triggerAutoConnect: No physical servers available for ${targetServer.name}")
-            return
-        }
-
-        ProtonLogger.i(TAG, "triggerAutoConnect: Initiating connection to ${targetServer.name}")
-        amneziaVpnManager.connect(targetServer.id, physicalServer, session, logicalServer = targetServer)
+        val physical = ServerSelector.pickPhysical(logical) ?: return null
+        // A recent server may be swapped for another one in its country if it stops answering.
+        val scope = if (recent != null) ServerScope.Country(logical.exitCountry) else ServerScope.AnyServer
+        return Target(logical, physical, session, scope)
     }
 }

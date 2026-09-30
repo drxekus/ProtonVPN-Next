@@ -1003,37 +1003,6 @@ private fun ProtectionModeOption(
 }
 
 @Composable
-fun InfoCard(
-    text: String,
-    modifier: Modifier = Modifier
-) {
-    val colors = ProtonNextTheme.colors
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .liquidGlass(shape = RoundedCornerShape(20.dp), alpha = 0.3f, shadowElevation = 0.dp)
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = ProtonIcons.InfoCircle,
-                contentDescription = null,
-                tint = colors.brandNorm,
-                modifier = Modifier.size(24.dp)
-            )
-            Spacer(modifier = Modifier.width(16.dp))
-            Text(
-                text = text,
-                style = MaterialTheme.typography.bodySmall,
-                color = colors.textNorm
-            )
-        }
-    }
-}
-
-@Composable
 fun CategoryHeader(
     title: String,
     modifier: Modifier = Modifier

@@ -99,7 +99,7 @@
     <!-- Settings Screen -->
     <string name="settings_title">Параметрлер</string>
     <string name="settings_connection">Қосылым параметрлері</string>
-    <string name="settings_kill_switch_desc">Kill Switch</string>
+    <string name="settings_kill_switch_desc">VPN үзілгенде интернетті Android құралдарымен бұғаттау</string>
     <string name="settings_auto_connect">Автоматты қосылу</string>
     <string name="settings_auto_connect_desc">Іске қосылғанда VPN-ге қосылу</string>
     <string name="settings_split_tunneling">Бөлек туннельдеу</string>
@@ -190,9 +190,9 @@
     <string name="settings_custom_dns">Таңдамалы DNS</string>
     <string name="settings_custom_dns_default">Әдепкі (Proton DNS)</string>
     <string name="settings_custom_dns_title">Таңдамалы DNS сервері</string>
-    <string name="settings_custom_dns_desc">IPv4 немесе IPv6 мекенжайын енгізіңіз. Proton-ның әдепкі қауіпсіз DNS-ін пайдалану үшін бос қалдырыңыз.</string>
+    <string name="settings_custom_dns_desc">IPv4 мекенжайын енгізіңіз (мысалы, 1.1.1.1). IPv6 қолдау көрсетілмейді. Proton-ның әдепкі DNS-ін пайдалану үшін бос қалдырыңыз.</string>
     <string name="settings_custom_dns_reset">Әдепкіге қайтару</string>
-    <string name="settings_custom_dns_placeholder">мысалы, 1.1.1.1 немесе 2606:4700:4700::1111</string>
+    <string name="settings_custom_dns_placeholder">мысалы, 1.1.1.1 немесе 9.9.9.9</string>
     <!-- Customization -->
     <string name="settings_customization">Баптау</string>
     <string name="settings_app_theme">Қолданба тақырыбы</string>
@@ -518,6 +518,7 @@
     <string name="pause_unit_seconds">Секундтар</string>
     <string name="pause_unit_minutes">Минуттар</string>
     <string name="pause_unit_hours">Сағаттар</string>
+    <string name="pause_custom_amount">Ұзақтығы</string>
     <string name="btn_start_pause">Кідіртуді бастау</string>
     <!-- Battery Optimization -->
     <string name="battery_optimization_title">Батареяны оңтайландыру белсенді</string>
@@ -683,7 +684,7 @@
     <string name="verification_preflight_title">Ұшу алдындағы тексерулерді талап етеді</string>
     <string name="verification_preflight_desc">Физикалық желі зонды сәтсіз болғанда қосылымды блоктау</string>
     <string name="verification_failure_detection_title">Туннель ақауларын анықтау</string>
-    <string name="verification_failure_detection_desc">Қозғалтқыш қателерін және тоқтап қалған көлік әрекетін бақылаңыз</string>
+    <string name="verification_failure_detection_desc">Прокси тізбегінің (VLESS/VMess) тасымалдау қателерін туннельдің үзілуі деп санау</string>
     <string name="verification_auto_reconnect_title">Автоматты қайта қосу</string>
     <string name="verification_auto_reconnect_desc">Анықталған ақаулықтан кейін туннельді қайта іске қосыңыз</string>
     <string name="verification_note">Растауды өшіру VPN шифрлауын өшірмейді. Ол тек белсенді қосылым тексерулерін және денсаулыққа негізделген қайта қосылымдарды өткізіп жібереді.</string>
@@ -698,25 +699,6 @@
     <string name="reconnect_required_dont_show_again">Бұдан былай көрсетілмесін</string>
     <string name="settings_reconnect_hint">Қайта қосылу туралы ескерту</string>
     <string name="settings_reconnect_hint_desc">Өзгертілген қосылым параметрлері тек қайта қосылғаннан кейін қолданылатынын ескерту</string>
-    <!-- AI Mode -->
-    <string name="settings_ai">AI</string>
-    <string name="settings_ai_desc">Қолданбаны басқаруға арналған эксперименталды AI ассистенті</string>
-    <string name="ai_settings_title">AI параметрлері</string>
-    <string name="ai_mode_title">AI режимі</string>
-    <string name="ai_mode_desc">Қолданбаны конфигурациялауға көмектесу үшін AI ассистентін қосыңыз</string>
-    <string name="ai_provider">AI провайдері</string>
-    <string name="ai_model">AI моделі</string>
-    <string name="ai_api_key">API кілті</string>
-    <string name="ai_bypass_blocks">AI блоктарын айналып өту (РФ)</string>
-    <string name="ai_bypass_blocks_desc">AI сұрауларын белсенді VPN немесе төменде бапталған SOCKS5/HTTPS проксиі арқылы бағыттау. DNS жалғыз өзі аймақтық шектеулерді айналып өтпейді.</string>
-    <string name="ai_byok_desc">Қазіргі уақытта Bring Your Own Key (BYOK) режимін қолдайды.</string>
-    <string name="ai_hint_api_key">Таңдалған провайдер үшін API кілтін енгізіңіз.</string>
-    <string name="ai_hint_long_press">AI командалық панелін ашу үшін шарлау панелін ұзақ басып тұрыңыз.</string>
-    <string name="ai_input_hint">Бірдеңе сұраңыз (мысалы, \"портты 1194-ке өзгерт\")</string>
-    <string name="ai_error_no_key">AI параметрлерінде API кілтін орнатыңыз.</string>
-    <string name="ai_processing">Өңделуде…</string>
-    <string name="ai_success">Дайын!</string>
-    <string name="ai_error_generic">AI қатесі орын алды</string>
     <string name="ip_rotation_title">IP ротациясы</string>
     <string name="ip_rotation_description">Жаңа жалпыға ортақ IP мекенжайын алу үшін кесте бойынша басқа VPN серверіне автоматты түрде қайта қосылыңыз.</string>
     <string name="ip_rotation_section_status">Күйі</string>
@@ -732,31 +714,8 @@
     <string name="connection_mode_standard">Қалыпты</string>
     <string name="connection_mode_tor">Tor</string>
 
-    <string name="ai_assistant_label">AI assistant</string>
-    <string name="ai_proposal_close">Close proposal</string>
-    <string name="ai_refine_hint">Ask AI to change this proposal…</string>
-    <string name="ai_refine_action">Update proposal</string>
-    <string name="ai_proposal_cancel">Not now</string>
-    <string name="ai_proposal_apply">Apply changes</string>
-
-    <string name="ai_proposal_preview_label">PROFILE PREVIEW</string>
-    <string name="ai_refine_bottom_hint">Use the AI field below to change this proposal</string>
-    <string name="ai_profile_fastest">Fastest available</string>
-    <string name="ai_profile_any_city">Any city</string>
-    <string name="ai_profile_any_country">Any country</string>
-    <string name="ai_profile_standard_obfuscation">Standard profile</string>
-    <string name="ai_profile_new_badge">New</string>
-    <string name="ai_profile_edit_badge">Update</string>
-    <string name="ai_profile_country">Country</string>
-    <string name="ai_profile_city">City</string>
-    <string name="ai_profile_server">Server</string>
-    <string name="ai_profile_port">Port</string>
-    <string name="ai_profile_protocol">Protocol</string>
-    <string name="ai_profile_obfuscation">Obfuscation</string>
-    <string name="ai_profile_connect_go">Connect &amp; Go</string>
-
     <string name="verification_handshake_timeout_section">Handshake timeout</string>
     <string name="verification_handshake_timeout_title">Reconnect timeout</string>
-    <string name="verification_handshake_timeout_desc">Wait this long for the handshake response before reconnecting to the same server.</string>
+    <string name="verification_handshake_timeout_desc">How long to wait for the server to answer the handshake before restarting the tunnel and trying other servers and ports.</string>
     <string name="verification_handshake_timeout_value">%1$d s</string>
 </resources>

@@ -138,6 +138,7 @@ class AmneziaVpnManagerTest {
             whenever(settingsManager.killSwitchEnabled).thenReturn(flowOf(false))
             whenever(settingsManager.splitTunnelingEnabled).thenReturn(flowOf(false))
             whenever(settingsManager.vpnPort).thenReturn(flowOf(1194))
+            whenever(settingsManager.lastWorkingAutoPort).thenReturn(flowOf(0))
             whenever(settingsManager.obfuscationEnabled).thenReturn(flowOf(false))
             whenever(settingsManager.proxyChainEnabled).thenReturn(flowOf(false))
             whenever(settingsManager.proxyChainConfig).thenReturn(flowOf(""))

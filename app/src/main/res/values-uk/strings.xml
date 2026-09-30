@@ -99,7 +99,7 @@
     <!-- Settings Screen -->
     <string name="settings_title">Налаштування</string>
     <string name="settings_connection">Налаштування підключення</string>
-    <string name="settings_kill_switch_desc">Аварійний вимикач</string>
+    <string name="settings_kill_switch_desc">Блокування інтернету при обриві VPN засобами Android</string>
     <string name="settings_auto_connect">Автопідключення</string>
     <string name="settings_auto_connect_desc">Підключатися до VPN при запуску</string>
     <string name="settings_split_tunneling">Роздільне тунелювання</string>
@@ -190,7 +190,7 @@
     <string name="settings_custom_dns">Користувацький DNS</string>
     <string name="settings_custom_dns_default">За замовчуванням (Proton DNS)</string>
     <string name="settings_custom_dns_title">Користувацький DNS-сервер</string>
-    <string name="settings_custom_dns_desc">Введіть IPv4 або IPv6 адресу. Залиште порожнім, щоб використовувати стандартний безпечний DNS від Proton.</string>
+    <string name="settings_custom_dns_desc">Введіть IPv4-адресу (наприклад, 1.1.1.1). IPv6 не підтримується. Залиште порожнім, щоб використовувати стандартний DNS від Proton.</string>
     <string name="settings_custom_dns_reset">Скинути</string>
     <string name="settings_custom_dns_placeholder">напр. 1.1.1.1 або 94.140.14.14</string>
     <!-- Customization -->
@@ -524,6 +524,7 @@
     <string name="pause_unit_seconds">Секунди</string>
     <string name="pause_unit_minutes">Хвилини</string>
     <string name="pause_unit_hours">Години</string>
+    <string name="pause_custom_amount">Тривалість</string>
     <string name="btn_start_pause">Запустити паузу</string>
     <!-- Battery Optimization -->
     <string name="battery_optimization_title">Оптимізація батареї активна</string>
@@ -689,7 +690,7 @@
     <string name="verification_preflight_title">Вимагати передпольотних перевірок</string>
     <string name="verification_preflight_desc">Блокувати з’єднання, якщо не вдається перевірити фізичну мережу</string>
     <string name="verification_failure_detection_title">Виявлення збоїв у тунелях</string>
-    <string name="verification_failure_detection_desc">Відстежуйте помилки двигуна та зупинену транспортну діяльність</string>
+    <string name="verification_failure_detection_desc">Вважати помилки транспорту ланцюжка проксі (VLESS/VMess) обривом тунелю</string>
     <string name="verification_auto_reconnect_title">Автоматичне повторне підключення</string>
     <string name="verification_auto_reconnect_desc">Перезапустіть тунель після виявлення збою</string>
     <string name="verification_note">Вимкнення перевірки не вимикає шифрування VPN. Він пропускає лише активні зонди підключення та повторне підключення на основі справності.</string>
@@ -704,25 +705,6 @@
     <string name="reconnect_required_dont_show_again">Більше не показувати</string>
     <string name="settings_reconnect_hint">Нагадування про перепідключення</string>
     <string name="settings_reconnect_hint_desc">Попереджати, що змінені налаштування підключення застосовуються лише після перепідключення</string>
-    <!-- AI Mode -->
-    <string name="settings_ai">AI</string>
-    <string name="settings_ai_desc">Експериментальний AI асистент для керування додатком</string>
-    <string name="ai_settings_title">Налаштування AI</string>
-    <string name="ai_mode_title">Режим AI</string>
-    <string name="ai_mode_desc">Увімкніть AI асистента, щоб він допомагав вам налаштовувати додаток</string>
-    <string name="ai_provider">Провайдер AI</string>
-    <string name="ai_model">Модель AI</string>
-    <string name="ai_api_key">API Ключ</string>
-    <string name="ai_bypass_blocks">Обіхід блокувань AI (РФ)</string>
-    <string name="ai_bypass_blocks_desc">Спрямовувати AI-запити через активний VPN або налаштований нижче проксі SOCKS5/HTTPS. Один лише DNS не обходить регіональні обмеження.</string>
-    <string name="ai_byok_desc">На даний момент підтримується лише режим Bring Your Own Key (BYOK).</string>
-    <string name="ai_hint_api_key">Введіть ваш API ключ для обраного провайдера.</string>
-    <string name="ai_hint_long_press">Утримуйте палець на панелі навігації, щоб відкрити панель команд AI.</string>
-    <string name="ai_input_hint">Запитайте щось (наприклад, \"зміни порт на 1194\")</string>
-    <string name="ai_error_no_key">Будь ласка, встановіть API ключ у налаштуваннях AI.</string>
-    <string name="ai_processing">Обробка…</string>
-    <string name="ai_success">Готово!</string>
-    <string name="ai_error_generic">Сталася помилка AI</string>
     <string name="ip_rotation_title">Ротація IP</string>
     <string name="ip_rotation_description">Автоматично перепідключайтеся до іншого VPN-сервера за розкладом, щоб отримувати нову публічну IP-адресу.</string>
     <string name="ip_rotation_section_status">Стан</string>
@@ -738,31 +720,8 @@
     <string name="connection_mode_standard">Звичайний</string>
     <string name="connection_mode_tor">Tor</string>
 
-    <string name="ai_assistant_label">AI assistant</string>
-    <string name="ai_proposal_close">Close proposal</string>
-    <string name="ai_refine_hint">Ask AI to change this proposal…</string>
-    <string name="ai_refine_action">Update proposal</string>
-    <string name="ai_proposal_cancel">Not now</string>
-    <string name="ai_proposal_apply">Apply changes</string>
-
-    <string name="ai_proposal_preview_label">PROFILE PREVIEW</string>
-    <string name="ai_refine_bottom_hint">Use the AI field below to change this proposal</string>
-    <string name="ai_profile_fastest">Fastest available</string>
-    <string name="ai_profile_any_city">Any city</string>
-    <string name="ai_profile_any_country">Any country</string>
-    <string name="ai_profile_standard_obfuscation">Standard profile</string>
-    <string name="ai_profile_new_badge">New</string>
-    <string name="ai_profile_edit_badge">Update</string>
-    <string name="ai_profile_country">Country</string>
-    <string name="ai_profile_city">City</string>
-    <string name="ai_profile_server">Server</string>
-    <string name="ai_profile_port">Port</string>
-    <string name="ai_profile_protocol">Protocol</string>
-    <string name="ai_profile_obfuscation">Obfuscation</string>
-    <string name="ai_profile_connect_go">Connect &amp; Go</string>
-
     <string name="verification_handshake_timeout_section">Handshake timeout</string>
     <string name="verification_handshake_timeout_title">Reconnect timeout</string>
-    <string name="verification_handshake_timeout_desc">Wait this long for the handshake response before reconnecting to the same server.</string>
+    <string name="verification_handshake_timeout_desc">How long to wait for the server to answer the handshake before restarting the tunnel and trying other servers and ports.</string>
     <string name="verification_handshake_timeout_value">%1$d s</string>
 </resources>

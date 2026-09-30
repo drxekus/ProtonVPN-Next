@@ -143,19 +143,16 @@ fun ConnectionVerificationSettingsScreen(
                             enter = fadeIn() + expandVertically(),
                             exit = fadeOut() + shrinkVertically(),
                         ) {
+                            // "Wait for verification" (connectionVerificationRequired) is no longer
+                            // shown because it has no effect any more: the mode alone decides when
+                            // the connection counts as established. The setting stays in code.
                             SettingsSection(stringResource(R.string.verification_behavior_title), content) {
-                                VerificationToggle(
-                                    R.string.verification_require_title,
-                                    R.string.verification_require_desc,
-                                    state.requireVerification,
-                                    viewModel::setRequireVerification,
-                                )
-                                Divider()
                                 VerificationToggle(
                                     R.string.verification_preflight_title,
                                     R.string.verification_preflight_desc,
                                     state.requirePreflight,
                                     viewModel::setRequirePreflight,
+                                    info = R.string.verification_preflight_info,
                                 )
                                 Divider()
                                 VerificationToggle(
@@ -163,6 +160,7 @@ fun ConnectionVerificationSettingsScreen(
                                     R.string.verification_failure_detection_desc,
                                     state.detectFailures,
                                     viewModel::setDetectFailures,
+                                    info = R.string.verification_failure_detection_info,
                                 )
                                 Divider()
                                 VerificationToggle(
@@ -170,6 +168,7 @@ fun ConnectionVerificationSettingsScreen(
                                     R.string.verification_auto_reconnect_desc,
                                     state.autoReconnect,
                                     viewModel::setAutoReconnect,
+                                    info = R.string.verification_auto_reconnect_info,
                                 )
                             }
                         }
@@ -228,6 +227,12 @@ private fun ModeRow(mode: ConnectionVerificationMode, selected: Boolean, onClick
         ConnectionVerificationMode.BALANCED -> R.string.verification_mode_balanced_desc
         ConnectionVerificationMode.AGGRESSIVE -> R.string.verification_mode_aggressive_desc
     }
+    val info = when (mode) {
+        ConnectionVerificationMode.DISABLED -> R.string.verification_mode_disabled_info
+        ConnectionVerificationMode.RELAXED -> R.string.verification_mode_relaxed_info
+        ConnectionVerificationMode.BALANCED -> R.string.verification_mode_balanced_info
+        ConnectionVerificationMode.AGGRESSIVE -> R.string.verification_mode_aggressive_info
+    }
     Row(
         Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -236,6 +241,7 @@ private fun ModeRow(mode: ConnectionVerificationMode, selected: Boolean, onClick
             Text(stringResource(title), color = colors.textNorm, fontWeight = FontWeight.Medium)
             Text(stringResource(description), style = MaterialTheme.typography.bodySmall, color = colors.textWeak)
         }
+        SettingInfoButton(title = stringResource(title), info = stringResource(info))
         RadioButton(selected, onClick = null, colors = RadioButtonDefaults.colors(selectedColor = colors.brandNorm))
     }
 }
@@ -257,6 +263,10 @@ private fun HandshakeTimeoutRow(seconds: Int, onChange: (Int) -> Unit) {
                     color = colors.textWeak,
                 )
             }
+            SettingInfoButton(
+                title = stringResource(R.string.verification_handshake_timeout_title),
+                info = stringResource(R.string.verification_handshake_timeout_info),
+            )
             Surface(
                 color = colors.brandNorm.copy(alpha = 0.14f),
                 shape = RoundedCornerShape(10.dp),
@@ -286,7 +296,13 @@ private fun HandshakeTimeoutRow(seconds: Int, onChange: (Int) -> Unit) {
 }
 
 @Composable
-private fun VerificationToggle(title: Int, description: Int, checked: Boolean, onChange: (Boolean) -> Unit) {
+private fun VerificationToggle(
+    title: Int,
+    description: Int,
+    checked: Boolean,
+    onChange: (Boolean) -> Unit,
+    info: Int? = null,
+) {
     val colors = ProtonNextTheme.colors
     Row(
         Modifier.fillMaxWidth().clickable { onChange(!checked) }.padding(horizontal = 16.dp, vertical = 13.dp),
@@ -295,6 +311,9 @@ private fun VerificationToggle(title: Int, description: Int, checked: Boolean, o
         Column(Modifier.weight(1f)) {
             Text(stringResource(title), color = colors.textNorm, fontWeight = FontWeight.Medium)
             Text(stringResource(description), style = MaterialTheme.typography.bodySmall, color = colors.textWeak)
+        }
+        if (info != null) {
+            SettingInfoButton(title = stringResource(title), info = stringResource(info))
         }
         Switch(checked, onCheckedChange = onChange)
     }

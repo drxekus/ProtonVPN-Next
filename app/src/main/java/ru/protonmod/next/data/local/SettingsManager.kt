@@ -121,6 +121,7 @@ class SettingsManager @Inject constructor(
         private val ST_SHOW_SYSTEM_APPS = booleanPreferencesKey("st_show_system_apps")
 
         private val VPN_PORT = intPreferencesKey("vpn_port")
+        private val LAST_WORKING_AUTO_PORT = intPreferencesKey("last_working_auto_port")
 
         // Custom DNS IP setting (IPv4 or IPv6)
         private val CUSTOM_DNS = stringPreferencesKey("custom_dns")
@@ -206,12 +207,12 @@ class SettingsManager @Inject constructor(
 
         private val RECONNECT_HINT_ENABLED = booleanPreferencesKey("reconnect_hint_enabled")
 
-        private val AI_ENABLED = booleanPreferencesKey("ai_enabled")
-        private val AI_PROVIDER = stringPreferencesKey("ai_provider")
-        private val AI_MODEL = stringPreferencesKey("ai_model")
-        private val AI_API_KEY = stringPreferencesKey("ai_api_key")
-        private val AI_BYPASS_BLOCKS = booleanPreferencesKey("ai_bypass_blocks")
-        private val AI_CUSTOM_PROVIDERS = stringPreferencesKey("ai_custom_providers")
+        /**
+         * Prefix of the keys written by the removed AI assistant (ai_enabled, ai_provider,
+         * ai_model, ai_api_key, ai_bypass_blocks, ai_custom_providers). No current setting
+         * uses it, so everything under it is purged by [removeLegacyAiSettings].
+         */
+        private const val LEGACY_AI_KEY_PREFIX = "ai_"
 
         private val AWG_JC = intPreferencesKey("awg_jc")
         private val AWG_JMIN = intPreferencesKey("awg_jmin")
@@ -240,8 +241,10 @@ class SettingsManager @Inject constructor(
         private val AWG_JUNK_LEVEL = intPreferencesKey("awg_junk_level")
 
         const val DEFAULT_IP_ROTATION_INTERVAL_MINUTES = 15
-        const val DEFAULT_HANDSHAKE_RECONNECT_TIMEOUT_SECONDS = 5
-        const val MIN_HANDSHAKE_RECONNECT_TIMEOUT_SECONDS = 3
+        // WireGuard resends an unanswered initiation after 5 s, so a 5 s deadline gave a slow
+        // network a single attempt before the tunnel was torn down again.
+        const val DEFAULT_HANDSHAKE_RECONNECT_TIMEOUT_SECONDS = 12
+        const val MIN_HANDSHAKE_RECONNECT_TIMEOUT_SECONDS = 6
         const val MAX_HANDSHAKE_RECONNECT_TIMEOUT_SECONDS = 30
 
         const val DEFAULT_I1 = "<b 0xce000000010897a297ecc34cd6dd000044d0ec2e2e1ea2991f467ace4222129b5a098823784694b4897b9986ae0b7280135fa85e196d9ad980b150122129ce2a9379531b0fd3e871ca5fdb883c369832f730e272d7b8b74f393f9f0fa43f11e510ecb2219a52984410c204cf875585340c62238e14ad04dff382f2c200e0ee22fe743b9c6b8b043121c5710ec289f471c91ee414fca8b8be8419ae8ce7ffc53837f6ade262891895f3f4cecd31bc93ac5599e18e4f01b472362b8056c3172b513051f8322d1062997ef4a383b01706598d08d48c221d30e74c7ce000cdad36b706b1bf9b0607c32ec4b3203a4ee21ab64df336212b9758280803fcab14933b0e7ee1e04a7becce3e2633f4852585c567894a5f9efe9706a151b615856647e8b7dba69ab357b3982f554549bef9256111b2d67afde0b496f16962d4957ff654232aa9e845b61463908309cfd9de0a6abf5f425f577d7e5f6440652aa8da5f73588e82e9470f3b21b27b28c649506ae1a7f5f15b876f56abc4615f49911549b9bb39dd804fde182bd2dcec0c33bad9b138ca07d4a4a1650a2c2686acea05727e2a78962a840ae428f55627516e73c83dd8893b02358e81b524b4d99fda6df52b3a8d7a5291326e7ac9d773c5b43b8444554ef5aea104a738ed650aa979674bbed38da58ac29d87c29d387d80b526065baeb073ce65f075ccb56e47533aef357dceaa8293a523c5f6f790be90e4731123d3c6152a70576e90b4ab5bc5ead01576c68ab633ff7d36dcde2a0b2c68897e1acfc4d6483aaaeb635dd63c96b2b6a7a2bfe042f6aed82e5363aa850aace12ee3b1a93f30d8ab9537df483152a5527faca21efc9981b304f11fc95336f5b9637b174c5a0659e2b22e159a9fed4b8e93047371175b1d6d9cc8ab745f3b2281537d1c75fb9451871864efa5d184c38c185fd203de206751b92620f7c369e031d2041e152040920ac2c5ab5340bfc9d0561176abf10a147287ea90758575ac6a9f5ac9f390d0d5b23ee12af583383d994e22c0cf42383834bcd3ada1b3825a0664d8f3fb678261d57601ddf94a8a68a7c273a18c08aa99c7ad8c6c42eab67718843597ec9930457359dfdfbce024afc2dcf9348579a57d8d3490b2fa99f278f1c37d87dad9b221acd575192ffae1784f8e60ec7cee4068b6b988f0433d96d6a1b1865f4e155e9fe020279f434f3bf1bd117b717b92f6cd1cc9bea7d45978bcc3f24bda631a36910110a6ec06da35f8966c9279d130347594f13e9e07514fa370754d1424c0a1545c5070ef9fb2acd14233e8a50bfc5978b5bdf8bc1714731f798d21e2004117c61f2989dd44f0cf027b27d4019e81ed4b5c31db347c4a3a4d85048d7093cf16753d7b0d15e078f5c7a5205dc2f87e330a1f716738dce1c6180e9d02869b5546f1c4d2748f8c90d9693cba4e0079297d22fd61402dea32ff0eb69ebd65a5d0b687d87e3a8b2c42b648aa723c7c7daf37abcc4bb85caea2ee8f55bec20e913b3324ab8f5c3304f820d42ad1b9f2ffc1a3af9927136b4419e1e579ab4c2ae3c776d293d397d575df181e6cae0a4ada5d67ecea171cca3288d57c7bbdaee3befe745fb7d634f70386d873b90c4d6c6596bb65af68f9e5121e67ebf0d89d3c909ceedfb32ce9575a7758ff080724e1ab5d5f43074ecb53a479af21ed03d7b6899c36631c0166f9d47e5e1d4528a5d3d3f744029c4b1c190cbfbad06f5f83f7ad0429fa9a2719c56ffe3783460e166de2d8>"
@@ -331,6 +334,9 @@ class SettingsManager @Inject constructor(
     val stShowSystemApps: Flow<Boolean> = dataStore.data.map { it[ST_SHOW_SYSTEM_APPS] ?: false }
 
     val vpnPort: Flow<Int> = dataStore.data.map { it[VPN_PORT] ?: 0 }
+
+    /** The automatic port that last carried traffic; tried first on the next automatic pick. */
+    val lastWorkingAutoPort: Flow<Int> = dataStore.data.map { it[LAST_WORKING_AUTO_PORT] ?: 0 }
     val customDns: Flow<String> = dataStore.data.map { it[CUSTOM_DNS] ?: "" }
 
     /** Preferred encrypted resolver. Empty means "race the whole trusted set". */
@@ -340,7 +346,7 @@ class SettingsManager @Inject constructor(
     val dnsOverTlsFallbackEnabled: Flow<Boolean> = dataStore.data.map { it[DNS_DOT_FALLBACK] ?: true }
 
     val apiBypassEnabled: Flow<Boolean> = dataStore.data.map { it[API_BYPASS_ENABLED] ?: false }
-    val apiBypassStrategy: Flow<String> = dataStore.data.map { it[API_BYPASS_STRATEGY] ?: "netlify" }
+    val apiBypassStrategy: Flow<String> = dataStore.data.map { withoutAuthorProxies(it[API_BYPASS_STRATEGY]) }
 
     val byeDpiFlags: Flow<String> = dataStore.data.map { it[BYEDPI_FLAGS] ?: "-s1 -d1" }
     val byeDpiSni: Flow<String> = dataStore.data.map { it[BYEDPI_SNI] ?: "google.com" }
@@ -388,13 +394,6 @@ class SettingsManager @Inject constructor(
     /** Whether the "changes apply after reconnect" notice is shown while the tunnel is up. */
     val reconnectHintEnabled: Flow<Boolean> = dataStore.data.map { it[RECONNECT_HINT_ENABLED] ?: true }
 
-    val aiEnabled: Flow<Boolean> = dataStore.data.map { it[AI_ENABLED] ?: false }
-    val aiProvider: Flow<String> = dataStore.data.map { it[AI_PROVIDER] ?: "openai" }
-    val aiModel: Flow<String> = dataStore.data.map { it[AI_MODEL] ?: "" }
-    val aiApiKey: Flow<String> = dataStore.data.map { it[AI_API_KEY] ?: "" }
-    val aiBypassBlocks: Flow<Boolean> = dataStore.data.map { it[AI_BYPASS_BLOCKS] ?: true }
-    val aiCustomProviders: Flow<String> = dataStore.data.map { it[AI_CUSTOM_PROVIDERS] ?: "" }
-
     // Privacy-first defaults: only crash reports and handled errors are enabled.
     // All optional telemetry requires an explicit user opt-in.
     val analyticsEnabled: Flow<Boolean> = dataStore.data.map { it[ANALYTICS_ENABLED] ?: false }
@@ -428,9 +427,8 @@ class SettingsManager @Inject constructor(
     fun isDnsOverTlsFallbackEnabledSync(): Boolean = prefs.getBoolean("dns_dot_fallback", true)
 
     fun isApiBypassEnabledSync(): Boolean = prefs.getBoolean("api_bypass_enabled", false)
-    fun getApiBypassStrategySync(): String {
-        return prefs.getString("api_bypass_strategy", "netlify") ?: "netlify"
-    }
+    fun getApiBypassStrategySync(): String =
+        withoutAuthorProxies(prefs.getString("api_bypass_strategy", null))
 
     fun getByeDpiFlagsSync(): String = prefs.getString("byedpi_flags", "-s1 -d1") ?: "-s1 -d1"
     fun getByeDpiSniSync(): String = prefs.getString("byedpi_sni", "google.com") ?: "google.com"
@@ -683,6 +681,10 @@ class SettingsManager @Inject constructor(
         editConnectionSetting(VPN_PORT, 0, port)
     }
 
+    suspend fun setLastWorkingAutoPort(port: Int) {
+        dataStore.edit { it[LAST_WORKING_AUTO_PORT] = port }
+    }
+
     /**
      * Stores a custom resolver, refusing Russian ones.
      *
@@ -733,7 +735,20 @@ class SettingsManager @Inject constructor(
         dataStore.edit { it[API_BYPASS_ENABLED] = enabled }
     }
 
+    /**
+     * The Netlify, Cloudflare, Deno and "event" strategies send every Proton API call — login,
+     * 2FA codes, session tokens — through servers run by the mod's author, where TLS ends and the
+     * tokens are readable. They are no longer offered; a saved choice falls back to Proton's own
+     * alternative routing, which reaches the same API without a third party.
+     */
+    private fun withoutAuthorProxies(strategy: String?): String = when (strategy) {
+        null, STRATEGY_NETLIFY, STRATEGY_CLOUDFLARE, STRATEGY_DENO, STRATEGY_EVENT -> STRATEGY_PROTON_MIRRORS
+        else -> strategy
+    }
+
     suspend fun setApiBypassStrategy(strategy: String) {
+        @Suppress("NAME_SHADOWING")
+        val strategy = withoutAuthorProxies(strategy)
         ProtonLogger.d("SettingsManager", "Setting strategy to: $strategy")
         prefs.edit { putString("api_bypass_strategy", strategy) }
         dataStore.edit { it[API_BYPASS_STRATEGY] = strategy }
@@ -894,29 +909,31 @@ class SettingsManager @Inject constructor(
         dataStore.edit { it[RECONNECT_HINT_ENABLED] = enabled }
     }
 
-    suspend fun setAiEnabled(enabled: Boolean) {
-        dataStore.edit { it[AI_ENABLED] = enabled }
-    }
+    /**
+     * Deletes whatever the removed AI assistant left behind, most importantly a stored API
+     * key, from DataStore and from the SharedPreferences mirror (a restored backup could put
+     * the keys there too). Writes only when such a key is actually present, so after the
+     * first clean-up it is a cheap read on every start.
+     */
+    suspend fun removeLegacyAiSettings() {
+        val staleMirrorKeys = prefs.all.keys.filter { it.startsWith(LEGACY_AI_KEY_PREFIX) }
+        if (staleMirrorKeys.isNotEmpty()) {
+            prefs.edit { staleMirrorKeys.forEach { remove(it) } }
+        }
 
-    suspend fun setAiProvider(provider: String) {
-        dataStore.edit { it[AI_PROVIDER] = provider }
-    }
-
-    suspend fun setAiModel(model: String) {
-        dataStore.edit { it[AI_MODEL] = model }
-    }
-
-    suspend fun setAiApiKey(key: String) {
-        dataStore.edit { it[AI_API_KEY] = key }
-    }
-
-    suspend fun setAiBypassBlocks(enabled: Boolean) {
-        dataStore.edit { it[AI_BYPASS_BLOCKS] = enabled }
-    }
-
-    /** Stores the user-defined AI providers as a JSON array (see AiCustomProviders). */
-    suspend fun setAiCustomProviders(json: String) {
-        dataStore.edit { it[AI_CUSTOM_PROVIDERS] = json }
+        val hasStaleKeys = dataStore.data.first().asMap().keys.any {
+            it.name.startsWith(LEGACY_AI_KEY_PREFIX)
+        }
+        if (!hasStaleKeys) return
+        dataStore.edit { preferences ->
+            preferences.asMap().keys
+                .filter { it.name.startsWith(LEGACY_AI_KEY_PREFIX) }
+                .forEach { key ->
+                    @Suppress("UNCHECKED_CAST")
+                    preferences.remove(key as Preferences.Key<Any>)
+                }
+        }
+        ProtonLogger.d("SettingsManager", "Removed settings left by the former AI assistant")
     }
 
     suspend fun setSelectedProfileId(id: String) {
@@ -1164,7 +1181,7 @@ class SettingsManager @Inject constructor(
                     SENTRY_NON_FATAL_ENABLED.name, SENTRY_SESSION_REPLAY_ENABLED.name,
                     SENTRY_ANR_ENABLED.name, SENTRY_METRICS_ENABLED.name,
                     SENTRY_LOGS_ENABLED.name, RECONNECT_HINT_ENABLED.name,
-                    AI_ENABLED.name, IP_HIDDEN.name, IP_ROTATION_ENABLED.name,
+                    IP_HIDDEN.name, IP_ROTATION_ENABLED.name,
                     IP_ROTATION_KEEP_COUNTRY.name -> {
                         val boolValue = value.toBoolean()
                         @Suppress("UNCHECKED_CAST")
@@ -1196,8 +1213,7 @@ class SettingsManager @Inject constructor(
                     API_PROXY_PASSWORD.name, SPOOF_COUNTRY_CODE.name, SELECTED_PROFILE_ID.name,
                     CUSTOM_PROFILES.name, NETSHIELD_LEVEL.name, NETSHIELD_CUSTOM_DOMAINS.name,
                     NETSHIELD_SOURCES.name, QUICK_CONNECT_STRATEGY.name,
-                    QUICK_CONNECT_TARGET_ID.name, SETUP_STEP.name, AI_PROVIDER.name,
-                    AI_MODEL.name, AI_API_KEY.name, AI_CUSTOM_PROVIDERS.name, AWG_H1.name,
+                    QUICK_CONNECT_TARGET_ID.name, SETUP_STEP.name, AWG_H1.name,
                     AWG_H2.name, AWG_H3.name, AWG_H4.name, AWG_I1.name, AWG_I2.name,
                     AWG_I3.name, AWG_I4.name, AWG_I5.name, AWG_HEADER_PROTECTION_KEY.name,
                     AWG_CONTENT_PADDING_ADDITION.name, AWG_REKEY_AFTER_TIME.name,
@@ -1277,12 +1293,6 @@ class SettingsManager @Inject constructor(
             POLICY_ACCEPTED_VERSION.name -> POLICY_ACCEPTED_VERSION
             SETUP_STEP.name -> SETUP_STEP
             RECONNECT_HINT_ENABLED.name -> RECONNECT_HINT_ENABLED
-            AI_ENABLED.name -> AI_ENABLED
-                    AI_PROVIDER.name -> AI_PROVIDER
-            AI_MODEL.name -> AI_MODEL
-            AI_API_KEY.name -> AI_API_KEY
-            AI_BYPASS_BLOCKS.name -> AI_BYPASS_BLOCKS
-            AI_CUSTOM_PROVIDERS.name -> AI_CUSTOM_PROVIDERS
             AWG_JC.name -> AWG_JC
             AWG_JMIN.name -> AWG_JMIN
             AWG_JMAX.name -> AWG_JMAX

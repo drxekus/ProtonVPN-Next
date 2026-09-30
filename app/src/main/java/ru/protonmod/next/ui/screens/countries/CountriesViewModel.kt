@@ -31,6 +31,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import ru.protonmod.next.vpn.ServerScope
+import ru.protonmod.next.vpn.ServerSelector
 import ru.protonmod.next.vpn.VpnTunnelState
 import ru.protonmod.next.R
 import ru.protonmod.next.data.repository.VpnRepository
@@ -179,10 +181,9 @@ class CountriesViewModel @Inject constructor(
         initialFetch()
     }
 
-    private suspend fun connectToServer(server: LogicalServer) {
-        // Reliable server selection: Fallback to any server with min load if status == 1 is absent.
-        val physicalServer = server.servers.filter { it.status == 1 }.minByOrNull { it.load }
-            ?: server.servers.minByOrNull { it.load }
+    private suspend fun connectToServer(server: LogicalServer, failoverScope: ServerScope? = null) {
+        // Only an online physical server can answer the handshake.
+        val physicalServer = ServerSelector.pickPhysical(server)
 
         if (physicalServer != null) {
             connectedServerState.setConnectedServer(server)
@@ -196,9 +197,9 @@ class CountriesViewModel @Inject constructor(
                 return
             }
             if (tunnelState == VpnTunnelState.UP || isConnecting) {
-                amneziaVpnManager.reconnect(server.id, physicalServer, session)
+                amneziaVpnManager.reconnect(server.id, physicalServer, session, failoverScope = failoverScope)
             } else {
-                amneziaVpnManager.connect(server.id, physicalServer, session)
+                amneziaVpnManager.connect(server.id, physicalServer, session, failoverScope = failoverScope)
             }
         } else {
             _error.value = context.getString(R.string.label_server_unavailable)
@@ -210,12 +211,12 @@ class CountriesViewModel @Inject constructor(
             val servers = vpnRepository.getCachedServers()
             val serversInCountry = servers.filter { it.exitCountry == country }
             if (serversInCountry.isNotEmpty()) {
-                val bestServer = serversInCountry
-                    .filter { it.servers.any { s -> s.status == 1 } }
-                    .minByOrNull { it.averageLoad } 
-                    ?: serversInCountry.minByOrNull { it.averageLoad }
-                
-                bestServer?.let { connectToServer(it) }
+                val bestServer = ServerSelector.fastest(serversInCountry)
+                if (bestServer != null) {
+                    connectToServer(bestServer, ServerScope.Country(country))
+                } else {
+                    _error.value = context.getString(R.string.label_server_unavailable)
+                }
             }
         }
     }
@@ -236,12 +237,12 @@ class CountriesViewModel @Inject constructor(
             val servers = vpnRepository.getCachedServers()
             val serversInCity = servers.filter { it.exitCountry == nav.countryCode && it.city == city }
             if (serversInCity.isNotEmpty()) {
-                val bestServer = serversInCity
-                    .filter { it.servers.any { s -> s.status == 1 } }
-                    .minByOrNull { it.averageLoad }
-                    ?: serversInCity.minByOrNull { it.averageLoad }
-                    
-                bestServer?.let { connectToServer(it) }
+                val bestServer = ServerSelector.fastest(serversInCity)
+                if (bestServer != null) {
+                    connectToServer(bestServer, ServerScope.City(nav.countryCode, city))
+                } else {
+                    _error.value = context.getString(R.string.label_server_unavailable)
+                }
             }
         }
     }

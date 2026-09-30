@@ -72,17 +72,17 @@ class CountriesViewModelTest {
         LogicalServer(
             id = "us_1", name = "US-FREE-1", tier = 0, features = 0,
             entryCountry = "US", exitCountry = "US", city = "New York",
-            averageLoad = 10, servers = listOf(PhysicalServer(id = "p1", domain = "d1", status = 1, load = 10))
+            averageLoad = 10, servers = listOf(PhysicalServer(id = "p1", domain = "d1", status = 1, wgPublicKey = "pk", load = 10))
         ),
         LogicalServer(
             id = "us_2", name = "US-FREE-2", tier = 0, features = 0,
             entryCountry = "US", exitCountry = "US", city = "Los Angeles",
-            averageLoad = 20, servers = listOf(PhysicalServer(id = "p2", domain = "d2", status = 1, load = 20))
+            averageLoad = 20, servers = listOf(PhysicalServer(id = "p2", domain = "d2", status = 1, wgPublicKey = "pk", load = 20))
         ),
         LogicalServer(
             id = "de_1", name = "DE-FREE-1", tier = 0, features = 0,
             entryCountry = "DE", exitCountry = "DE", city = "Frankfurt",
-            averageLoad = 30, servers = listOf(PhysicalServer(id = "p3", domain = "d3", status = 1, load = 30))
+            averageLoad = 30, servers = listOf(PhysicalServer(id = "p3", domain = "d3", status = 1, wgPublicKey = "pk", load = 30))
         )
     )
 
@@ -164,7 +164,7 @@ class CountriesViewModelTest {
         
         viewModel.selectCountry("US")
         advanceUntilIdle()
-        verify(amneziaVpnManager).connect(eq("us_1"), any(), any(), anyOrNull(), anyOrNull(), anyOrNull(), anyOrNull(), any())
+        verify(amneziaVpnManager).connect(eq("us_1"), any(), any(), anyOrNull(), anyOrNull(), anyOrNull(), anyOrNull(), any(), anyOrNull())
         
         collectJob.cancel()
     }
@@ -176,7 +176,7 @@ class CountriesViewModelTest {
         
         viewModel.selectServer(testServers[2]) // DE-FREE-1
         advanceUntilIdle()
-        verify(amneziaVpnManager).connect(eq("de_1"), any(), any(), anyOrNull(), anyOrNull(), anyOrNull(), anyOrNull(), any())
+        verify(amneziaVpnManager).connect(eq("de_1"), any(), any(), anyOrNull(), anyOrNull(), anyOrNull(), anyOrNull(), any(), anyOrNull())
         
         collectJob.cancel()
     }

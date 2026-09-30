@@ -58,32 +58,13 @@ class EventBypassManager @Inject constructor(
     private val refreshMutex = Mutex()
 
     /**
-     * Schedules the daily refresh. Privacy builds never phone home on their own, so
-     * the job is cancelled there; the manual button on the bypass screen still works.
+     * The event bypass routed Proton API traffic, tokens included, through hosts the mod's
+     * author publishes at runtime, and its daily refresh contacted six author-run mirrors from
+     * every install. The strategy is gone, so the job is only cancelled here, including the one
+     * an earlier version already scheduled.
      */
     fun scheduleRefresh() {
-        if (BuildConfig.IS_PRIVACY_BUILD) {
-            WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
-            return
-        }
-
-        val request = PeriodicWorkRequest.Builder(
-            EventBypassWorker::class.java,
-            1L,
-            TimeUnit.DAYS
-        )
-            .setConstraints(
-                Constraints.Builder()
-                    .setRequiredNetworkType(NetworkType.CONNECTED)
-                    .build()
-            )
-            .build()
-
-        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-            WORK_NAME,
-            ExistingPeriodicWorkPolicy.UPDATE,
-            request
-        )
+        WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
     }
 
     /**

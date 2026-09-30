@@ -50,6 +50,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import ru.protonmod.next.utils.crypto.CryptoWrapper
 import ru.protonmod.next.utils.crypto.VpnKeyPair
+import ru.protonmod.next.vpn.ServerSelector
 import javax.inject.Inject
 import javax.inject.Provider
 import javax.inject.Singleton
@@ -172,26 +173,8 @@ open class VpnRepository @Inject constructor(
      * Finds the best logical server for a given VPN profile from the provided list.
      * Logic: Target ID > City Match > Country Match > Lowest Load.
      */
-    fun findBestServerForProfile(profile: VpnProfileEntity, allServers: List<LogicalServer>): LogicalServer? {
-        if (profile.targetServerId != null) {
-            val server = allServers.find { it.id == profile.targetServerId }
-            if (server != null) return server
-        }
-
-        if (profile.targetCity != null && profile.targetCountry != null) {
-            val cityServers = allServers.filter {
-                it.exitCountry == profile.targetCountry && it.city == profile.targetCity
-            }
-            if (cityServers.isNotEmpty()) return cityServers.minByOrNull { it.averageLoad }
-        }
-
-        if (profile.targetCountry != null) {
-            val countryServers = allServers.filter { it.exitCountry == profile.targetCountry }
-            if (countryServers.isNotEmpty()) return countryServers.minByOrNull { it.averageLoad }
-        }
-
-        return allServers.minByOrNull { it.averageLoad }
-    }
+    fun findBestServerForProfile(profile: VpnProfileEntity, allServers: List<LogicalServer>): LogicalServer? =
+        ServerSelector.forTarget(allServers, profile.targetServerId, profile.targetCountry, profile.targetCity)
 
     suspend fun getServers(
         accessToken: String,
@@ -489,7 +472,9 @@ open class VpnRepository @Inject constructor(
             if (response.isSuccessful && body != null) {
                 Result.success(body)
             } else {
-                Result.failure(Exception("Failed to get location: ${response.code()}"))
+                // Proton's error JSON ({"Code":…,"Error":…}) says why; it holds no personal data.
+                val reason = runCatching { response.errorBody()?.string()?.take(300) }.getOrNull()
+                Result.failure(Exception("Failed to get location: ${response.code()} $reason"))
             }
         } catch (e: Exception) {
             Result.failure(e)

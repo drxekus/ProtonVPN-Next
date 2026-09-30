@@ -33,6 +33,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
+import ru.protonmod.next.vpn.ServerScope
+import ru.protonmod.next.vpn.ServerSelector
 import ru.protonmod.next.vpn.VpnTunnelState
 import ru.protonmod.next.R
 import ru.protonmod.next.data.repository.VpnRepository
@@ -201,9 +203,8 @@ class ProfilesViewModel @Inject constructor(
                 return@launch
             }
 
-            // Reliable server selection: Fallback to any server with min load if status == 1 is absent.
-            val physicalServer = targetServer.servers.filter { it.status == 1 }.minByOrNull { it.load }
-                ?: targetServer.servers.minByOrNull { it.load }
+            // Only an online physical server can answer the handshake.
+            val physicalServer = ServerSelector.pickPhysical(targetServer)
 
             if (physicalServer == null) {
                 ProtonLogger.e(TAG, "Cannot connect: Selected server is currently unavailable.")
@@ -220,13 +221,16 @@ class ProfilesViewModel @Inject constructor(
                 selectedConfig?.let {
                     obfuscationParams = AmneziaVpnManager.ObfuscationParams(
                         jc = it.jc, jmin = it.jmin, jmax = it.jmax,
-                        s1 = it.s1, s2 = it.s2,
+                        s1 = it.s1, s2 = it.s2, s3 = it.s3, s4 = it.s4,
                         h1 = it.h1, h2 = it.h2, h3 = it.h3, h4 = it.h4,
-                        i1 = it.i1
+                        i1 = it.i1, i2 = it.i2, i3 = it.i3, i4 = it.i4, i5 = it.i5
                     )
                 }
             }
 
+            val failoverScope = ServerSelector.scopeForTarget(
+                profile.targetServerId, profile.targetCountry, profile.targetCity
+            )
             connectedServerState.setConnectedServer(targetServer)
             val tunnelState = amneziaVpnManager.tunnelState.value
             val isConnecting = amneziaVpnManager.isConnecting.value
@@ -238,7 +242,8 @@ class ProfilesViewModel @Inject constructor(
                     session,
                     overridePort = profile.port,
                     overrideObfuscation = profile.isObfuscationEnabled,
-                    obfuscationParams = obfuscationParams
+                    obfuscationParams = obfuscationParams,
+                    failoverScope = failoverScope
                 )
             } else {
                 amneziaVpnManager.connect(
@@ -247,7 +252,8 @@ class ProfilesViewModel @Inject constructor(
                     session,
                     overridePort = profile.port,
                     overrideObfuscation = profile.isObfuscationEnabled,
-                    obfuscationParams = obfuscationParams
+                    obfuscationParams = obfuscationParams,
+                    failoverScope = failoverScope
                 )
             }
 
@@ -260,27 +266,9 @@ class ProfilesViewModel @Inject constructor(
     private fun findBestServerForProfile(
         profile: VpnProfileUiModel,
         allServers: List<LogicalServer>
-    ): LogicalServer? {
-        if (profile.targetServerId != null) {
-            return allServers.find { it.id == profile.targetServerId }
-        }
-
-        if (profile.targetCity != null && profile.targetCountry != null) {
-            val cityServers = allServers.filter { it.exitCountry == profile.targetCountry && it.city == profile.targetCity }
-            if (cityServers.isNotEmpty()) {
-                return cityServers.minByOrNull { it.averageLoad }
-            }
-        }
-
-        if (profile.targetCountry != null) {
-            val countryServers = allServers.filter { it.exitCountry == profile.targetCountry }
-            if (countryServers.isNotEmpty()) {
-                return countryServers.minByOrNull { it.averageLoad }
-            }
-        }
-
-        return allServers.minByOrNull { it.averageLoad }
-    }
+    ): LogicalServer? = ServerSelector.forTarget(
+        allServers, profile.targetServerId, profile.targetCountry, profile.targetCity
+    )
 
     suspend fun getCitiesForCountry(countryCode: String): List<CityDisplayItem> {
         return vpnRepository.getCachedServers()
