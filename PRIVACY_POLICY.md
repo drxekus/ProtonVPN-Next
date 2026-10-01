@@ -26,9 +26,10 @@ Proton VPN-Next — неофициальный клиент Proton VPN с отк
 - Не проверяет и не скачивает обновления.
 - Не обращается к серверам автора оригинального мода и к любым серверам форка.
 - Не видит и не записывает содержимое вашего VPN-трафика.
+- Права Shizuku (если вы его установили и разрешили доступ) использует только для чтения и записи системного списка исключений блокировки VPN и только по вашему нажатию.
 
 ### 4. Что хранится на устройстве
-Токены сессии, ключи WireGuard, кэш серверов, настройки, статистика трафика (если включена). Всё лежит во внутреннем хранилище приложения и не попадает в облачную резервную копию Android. Экспорт настроек через «Резервное копирование» делаете только вы; данные входа туда не попадают. Отладочные сборки дополнительно ведут локальный журнал событий VPN без IP-адресов.
+Токены сессии, ключи WireGuard, кэш серверов, настройки, статистика трафика (если включена), а также результаты автоподбора обфускации: для каждой сети — код мобильного оператора или хэш шлюза Wi-Fi и счётчики успехов и неудач вариантов. Всё лежит во внутреннем хранилище приложения и не попадает в облачную резервную копию Android. Экспорт настроек через «Резервное копирование» делаете только вы; данные входа туда не попадают. Отладочные сборки дополнительно ведут локальный журнал событий VPN без IP-адресов.
 
 ### 5. Отказ от ответственности
 Программа распространяется по лицензии GPL-3.0 «как есть», без каких-либо гарантий. Вы используете её на свой риск и сами отвечаете за соблюдение законов своей страны.
@@ -57,9 +58,10 @@ Proton VPN-Next is an unofficial, open-source Proton VPN client. This is a fork 
 - No update checks or downloads.
 - No requests to the original author's servers or to any server run by this fork.
 - No access to, or logging of, your VPN traffic.
+- Shizuku rights (if you installed it and granted access) are used only to read and write the VPN lockdown exception list, and only when you tap the button.
 
 ### 4. What is stored on the device
-Session tokens, WireGuard keys, server cache, settings and optional traffic statistics are kept in the app's private storage and are excluded from Android cloud backup. Debug builds also keep a local VPN event log without IP addresses.
+Session tokens, WireGuard keys, server cache, settings, optional traffic statistics and the automatic obfuscation results (per network: the mobile operator code or a hash of the Wi-Fi gateway, with success and failure counts) are kept in the app's private storage and are excluded from Android cloud backup. Debug builds also keep a local VPN event log without IP addresses.
 
 ### 5. Disclaimer
 Distributed under GPL-3.0 "as is", without any warranty. You use it at your own risk and are responsible for complying with local laws.

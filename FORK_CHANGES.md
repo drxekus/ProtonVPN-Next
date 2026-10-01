@@ -1,6 +1,6 @@
 # Чем этот форк отличается от оригинала
 
-Форк проекта ProtonVPN-Next (база — коммит `e4b08fa`, версия `12.0.0-alpha2st3-38`). Все изменения проверены на реальном телефоне и покрыты юнит-тестами (177 тестов проходят).
+Форк проекта ProtonVPN-Next (база — коммит `e4b08fa`, версия `12.0.0-alpha2st3-38`). Все изменения проверены на реальном телефоне и покрыты юнит-тестами (184 теста проходят).
 
 [English version below](#english)
 
@@ -28,6 +28,14 @@
 - **Меньше фоновой нагрузки:** уведомление обновляется раз в 5 секунд, а не каждую секунду (прошивки считали это активностью в фоне).
 - **Мелочи:** повторное нажатие на сервер при неработающем туннеле больше не игнорируется; состояние «Подключение…» после ошибки сбрасывается; «Connect & Go» ждёт проверенного туннеля; прокси ByeDPI для обхода блокировки API запускается при старте приложения (раньше — только после открытия настроек); профили передают все параметры обфускации (S3/S4, I2–I5).
 
+## Обход блокировок
+
+- **Автоподбор обфускации («лестница»).** Если рукопожатие осталось без ответа, следующая попытка меняет и обфускацию: без неё → стандартный профиль → средний мусор (4–6 пакетов по 40–120 байт) → сильный (8–12 пакетов по 100–700 байт) → «живой QUIC» (I1 с заголовком QUIC Initial и случайными идентификатором и содержимым для каждого рукопожатия; движок поддерживает тег `<r N>`). Серверы Proton — обычный WireGuard, поэтому все варианты оставляют рукопожатие как есть (S1–S4 = 0, H1–H4 = 1–4) и меняют только пакеты перед ним.
+- **Учится на своей сети.** Результаты хранятся отдельно для каждой сети (код оператора или хэш шлюза Wi-Fi, только на телефоне) и забываются с периодом полураспада 14 дней. Новое подключение берёт то, что сработало в этой сети последним; после неудачи следующий вариант выбирается сэмплированием Томпсона. Раз в неделю приложение снова пробует вариант пользователя — вдруг блокировку сняли.
+- **Разные установки выглядят по-разному.** Размеры мусора и записанный QUIC-образец выбираются один раз для каждой установки: раньше все копии приложения слали побайтно одинаковый I1.
+- Автоподбор работает с режимом «Без дополнительной защиты» и стандартным профилем AWG и выключается в настройках обфускации; свой профиль и цепочку прокси не трогает.
+- Скилл Claude Code `tune-obfuscation` снимает с телефона журнал и статистику лестницы и помогает подобрать варианты для следующих версий.
+
 ## Приватность и безопасность
 
 - **Реальный IP больше не уходит на серверы автора мода.** Главный экран при каждом открытии узнавал реальный IP в обход VPN через развёртывания автора (Cloudflare, Deno, Vercel, «event»-хост) — во всех сборках, включая privacy. Теперь IP и страна берутся у самого Proton (`vpn/v1/location`), без обхода туннеля.
@@ -44,6 +52,7 @@
 - Удалён переключатель «Ожидать завершения проверки»: проверка теперь всегда честная.
 - Нажатие на страну или город снова подключает к лучшему серверу в ней («три точки» — список городов и серверов). Раньше экран уходил на главную раньше, чем успевал прочитать список серверов, и подключение отменялось. То же исправлено для профилей.
 - Предупреждение «VPN-сервер не отвечает» снимается при отключении.
+- **Shizuku для раздельного туннелирования.** При «Блокировать соединения без VPN» исключённые приложения остаются без интернета. Если установлен Shizuku, экран раздельного туннелирования сам записывает их в системный список исключений блокировки (`always_on_vpn_lockdown_whitelist`). Права Shizuku используются ровно для двух команд — чтения и записи этой настройки — и только по нажатию кнопки; команда передаётся без shell, имена пакетов проверяются.
 - В описании раздельного туннелирования сказано, что при «Блокировать соединения без VPN» Android отрезает исключённым приложениям интернет. В README — как дать им прямой доступ через системный список исключений блокировки.
 - Исправлены ошибки в текстах: описание экрана загрузки серверов, подпись поля длительности паузы, подзаголовки Kill Switch и «Выйти», поле DNS обещало поддержку IPv6.
 
@@ -64,7 +73,7 @@
 <a name="english"></a>
 # How this fork differs from the original
 
-A fork of ProtonVPN-Next at commit `e4b08fa`. Tested on a real phone; 177 unit tests pass.
+A fork of ProtonVPN-Next at commit `e4b08fa`. Tested on a real phone; 184 unit tests pass.
 
 **Connection stability**
 - "Fastest" only picks servers that are online and have a WireGuard key. Servers under maintenance kept a load of 0 and used to win. One shared `ServerSelector` replaces ten copies of that logic.
@@ -78,6 +87,12 @@ A fork of ProtonVPN-Next at commit `e4b08fa`. Tested on a real phone; 177 unit t
 - Failover no longer starts over each time the VPN process wakes the app (it retried the same ports for hours); an exact server that does not answer is replaced by the best one in its country after 4 attempts.
 - The notification refreshes every 5 s instead of every second.
 
+**Censorship circumvention**
+- Automatic obfuscation ladder: after a handshake gets no answer, the next attempt also changes the obfuscation (none → standard → medium junk → strong junk → "live QUIC" I1 with a random connection ID and payload per handshake). All variants keep the handshake Proton-compatible (S1–S4 = 0, H1–H4 = 1–4).
+- It learns per network (operator code or Wi-Fi hash, on the device only) by Thompson sampling over results with a 14-day half-life, reuses what last worked, and retries the user's own setting weekly.
+- Junk sizes and the recorded QUIC sample are drawn per install, so installs no longer send identical I1 packets.
+- A Claude Code skill, `tune-obfuscation`, pulls the ladder's data over adb to tune the variants.
+
 **Privacy and security**
 - The real IP is no longer sent to the mod author's servers, and the socket no longer bypasses the VPN. Location now comes from Proton's own `vpn/v1/location` API.
 - TLS: any chain the system rejected used to be accepted. Now a chain passes only if the system trusts it or its leaf key matches one of Proton's pins.
@@ -88,6 +103,7 @@ A fork of ProtonVPN-Next at commit `e4b08fa`. Tested on a real phone; 177 unit t
 
 **UI**
 - Every setting has an ⓘ explanation in English and Russian. Several wrong labels are fixed.
+- With Shizuku installed, the split tunnelling screen writes the excluded apps into Android's lockdown exception list (two commands, on a tap only).
 - Tapping a country or city connects to its best server again (the screen used to navigate away and cancel the connection); the same fix applies to profiles. The "server not responding" warning clears on disconnect.
 - The split tunnelling note explains that Android's "Block connections without VPN" cuts excluded apps off; the README shows the lockdown allowlist workaround.
 

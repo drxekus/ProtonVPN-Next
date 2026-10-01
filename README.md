@@ -19,7 +19,7 @@
 2. **VPN не восстанавливался сам.** После короткого обрыва сети (смена вышки) или после того, как система выгрузила процесс, VPN отключался и не поднимался, пока не откроешь приложение.
 3. **Данные уходили на серверы автора мода**, включая ваш реальный IP в обход VPN.
 
-Все три исправлены. Изменения проверены на реальном телефоне, 177 юнит-тестов проходят.
+Все три исправлены. Изменения проверены на реальном телефоне, 184 юнит-теста проходят.
 
 | | Оригинал | Этот форк |
 |---|---|---|
@@ -117,7 +117,11 @@ keytool -list -v -keystore ~/.android/debug.keystore -storepass android | grep S
 
 Когда включена блокировка, Android сам отрезает любой трафик мимо VPN. Поэтому исключённые приложения, IP-адреса и домены остаются без интернета. Приложение VPN это обойти не может: так устроен Android.
 
-Для **приложений** в Android есть системный список исключений блокировки. В обычных настройках его нет, но его можно задать через ADB. Приложения из этого списка ходят в интернет напрямую, а остальные по-прежнему защищены блокировкой. Для IP-адресов и доменов такого списка нет.
+Для **приложений** в Android есть системный список исключений блокировки. В обычных настройках его нет, но его можно задать через Shizuku или ADB. Приложения из этого списка ходят в интернет напрямую, а остальные по-прежнему защищены блокировкой. Для IP-адресов и доменов такого списка нет.
+
+**Через Shizuku (проще):** если установлен и запущен [Shizuku](https://shizuku.rikka.app/), откройте «Раздельное туннелирование» в режиме исключения, нажмите «Разрешить в Shizuku», затем «Записать список» и перезагрузите телефон. Приложение записывает туда ровно список исключённых приложений и использует права Shizuku только для чтения и записи этой одной настройки, только по нажатию кнопки.
+
+**Через ADB:**
 
 1. Узнайте имена пакетов: `adb shell pm list packages | grep -i bank`.
 2. Задайте список через запятую, без пробелов:
@@ -128,6 +132,12 @@ keytool -list -v -keystore ~/.android/debug.keystore -storepass android | grep S
 4. В приложении добавьте эти же приложения в исключения раздельного туннелирования.
 
 Проверка: `adb shell settings get secure always_on_vpn_lockdown_whitelist`. Если в настройках Android выключить и снова включить «Постоянный VPN» или блокировку, система сотрёт список, и команду придётся повторить. Убрать список: `adb shell settings delete secure always_on_vpn_lockdown_whitelist`, затем перезагрузка. Работу на конкретной прошивке нужно проверить: производитель мог изменить это поведение.
+
+### Автоподбор обфускации
+
+Если сеть молча отбрасывает рукопожатия WireGuard, приложение при следующей попытке меняет не только сервер, но и обфускацию: стандартный профиль → больше и крупнее мусорных пакетов → первый пакет в виде начала QUIC-соединения, новый для каждого рукопожатия. Что сработало, запоминается отдельно для каждой сети (код оператора или хэш Wi-Fi, только на телефоне) и в следующий раз пробуется первым. Выбор — сэмплирование Томпсона по успехам и неудачам, которые со временем забываются; раз в неделю приложение снова пробует вариант полегче. Меняются только пакеты перед рукопожатием (серверы Proton — обычный WireGuard), поэтому скорость туннеля не страдает. Настройки → Протокол → шестерёнка → «Автоподбор обфускации»; свой профиль AWG и цепочку прокси он не трогает.
+
+Для разработчиков: скилл Claude Code [`.claude/skills/tune-obfuscation`](.claude/skills/tune-obfuscation/SKILL.md) снимает с телефона журнал и статистику лестницы через adb и предлагает новые варианты.
 
 ### Диагностика
 
@@ -196,11 +206,13 @@ For reliable background operation on aggressive OEM ROMs:
 - remove battery restrictions;
 - enable Android's "Always-on VPN" with "Block connections without VPN".
 
-**Split tunnelling with "Block connections without VPN".** With blocking on, Android drops all traffic that bypasses the VPN, so excluded apps, IPs and domains have no internet. For apps, Android has a hidden lockdown allowlist:
+**Split tunnelling with "Block connections without VPN".** With blocking on, Android drops all traffic that bypasses the VPN, so excluded apps, IPs and domains have no internet. For apps, Android has a hidden lockdown allowlist. With [Shizuku](https://shizuku.rikka.app/) running, the split tunnelling screen writes it for you ("Allow in Shizuku", then "Write list", then reboot). Otherwise:
 1. Run `adb shell settings put secure always_on_vpn_lockdown_whitelist pkg1,pkg2`.
 2. Reboot.
 3. Exclude the same apps in the app's split tunnelling.
 
 Toggling Always-on or blocking in Android settings clears the list. There is no such list for IPs and domains.
+
+**Automatic obfuscation.** When a network silently drops WireGuard handshakes, the next attempt also changes the obfuscation (standard → more and larger junk → a fresh QUIC-like first packet). What works is remembered per network and chosen first, by Thompson sampling over decaying results. Only pre-handshake packets change, as Proton runs plain WireGuard.
 
 License: GPL-3.0. Based on ProtonVPN-Next by SMH01, with copyright notices retained. Report issues at [Issues](https://github.com/drxekus/ProtonVPN-Next/issues).
