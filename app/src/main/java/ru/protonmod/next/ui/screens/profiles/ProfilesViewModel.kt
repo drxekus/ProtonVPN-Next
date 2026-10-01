@@ -34,6 +34,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
 import ru.protonmod.next.di.ApplicationScope
+import ru.protonmod.next.vpn.LastChoice
 import kotlinx.coroutines.withTimeout
 import ru.protonmod.next.vpn.ServerScope
 import ru.protonmod.next.vpn.ServerSelector
@@ -200,6 +201,9 @@ class ProfilesViewModel @Inject constructor(
                 return@launch
             }
 
+            settingsManager.setLastConnectChoice(
+                LastChoice.ofTarget(profile.targetServerId, profile.targetCountry, profile.targetCity).encode()
+            )
             val targetServer = findBestServerForProfile(profile, servers)
             if (targetServer == null) {
                 // The profile targets a country/city with no server in the current list; the user

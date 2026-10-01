@@ -226,6 +226,15 @@ object DatabaseModule {
         }
     }
 
+    val MIGRATION_21_22 = object : Migration(21, 22) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE servers ADD COLUMN hostCountry TEXT")
+            // The stored list predates the column: make the next sync fetch and process it in full
+            // (a matching StatusID or a 304 would otherwise keep the old rows).
+            db.execSQL("UPDATE servers_cache SET statusId = NULL, lastModified = NULL, expiresAt = 0")
+        }
+    }
+
     val MIGRATION_20_21 = object : Migration(20, 21) {
         override fun migrate(db: SupportSQLiteDatabase) {
             // Proton's per-location server score, used to pick the fastest server.
@@ -301,6 +310,7 @@ object DatabaseModule {
         .addMigrations(MIGRATION_18_19)
         .addMigrations(MIGRATION_19_20)
         .addMigrations(MIGRATION_20_21)
+        .addMigrations(MIGRATION_21_22)
         .build()
     }
 

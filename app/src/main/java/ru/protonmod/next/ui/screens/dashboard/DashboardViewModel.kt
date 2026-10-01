@@ -40,6 +40,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import ru.protonmod.next.vpn.ServerScope
 import ru.protonmod.next.vpn.ServerSelector
+import ru.protonmod.next.vpn.LastChoice
 import ru.protonmod.next.vpn.VpnTunnelState
 import org.json.JSONObject
 import ru.protonmod.next.R
@@ -559,13 +560,10 @@ class DashboardViewModel @Inject constructor(
             val isConnectedToAny = currentState.isConnected || currentState.isConnecting
             val isTargetServerConnected = currentState.connectedServer?.id == server.id
 
-            if (isConnectedToAny) {
-                if (isTargetServerConnected && currentState.isConnected) {
-                    disconnect()
-                } else {
-                    initiateConnection(server)
-                }
+            if (isConnectedToAny && isTargetServerConnected && currentState.isConnected) {
+                disconnect()
             } else {
+                settingsManager.setLastConnectChoice(LastChoice.Server(server.id).encode())
                 initiateConnection(server)
             }
         }
@@ -579,12 +577,16 @@ class DashboardViewModel @Inject constructor(
 
             when (currentState.quickConnectStrategy) {
                 "recent" -> {
-                    val lastServer = currentState.recentConnections.firstOrNull()
-                    if (lastServer != null) {
-                        initiateConnection(lastServer)
+                    // The last thing the user chose, not the last server: an automatic "fastest"
+                    // pick must not pin itself as the "last used" one.
+                    val choice = LastChoice.decode(settingsManager.lastConnectChoice.first()) ?: LastChoice.Fastest
+                    ProtonLogger.i("Dashboard", "Fastest ranking: ${ServerSelector.describeTop(currentState.servers)}")
+                    val target = choice.resolve(currentState.servers)
+                    if (target != null) {
+                        ProtonLogger.i("Dashboard", "Quick connect to the last choice ${choice.encode()}: ${target.first.name}")
+                        initiateConnection(target.first, failoverScope = target.second)
                     } else {
-                        // Fallback to fastest if no recent
-                        connectToFastest(currentState.servers)
+                        _errorMessage.value = context.getString(R.string.label_server_unavailable)
                     }
                 }
                 "profile" -> {
@@ -613,6 +615,8 @@ class DashboardViewModel @Inject constructor(
     }
 
     private suspend fun connectToFastest(servers: List<LogicalServer>) {
+        settingsManager.setLastConnectChoice(LastChoice.Fastest.encode())
+        ProtonLogger.i("Dashboard", "Fastest ranking: ${ServerSelector.describeTop(servers)}")
         val bestServer = ServerSelector.fastest(servers)
         if (bestServer != null) {
             initiateConnection(bestServer, failoverScope = ServerScope.AnyServer)
@@ -625,6 +629,9 @@ class DashboardViewModel @Inject constructor(
         val session = sessionDao.getSession() ?: return
 
         val targetServer = findBestServerForProfile(profile, allServers) ?: return
+        settingsManager.setLastConnectChoice(
+            LastChoice.ofTarget(profile.targetServerId, profile.targetCountry, profile.targetCity).encode()
+        )
         val physicalServer = ServerSelector.pickPhysical(targetServer) ?: run {
             _errorMessage.value = context.getString(R.string.label_server_unavailable)
             return

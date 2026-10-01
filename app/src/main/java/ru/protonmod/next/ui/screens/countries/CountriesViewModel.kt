@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import ru.protonmod.next.di.ApplicationScope
+import ru.protonmod.next.vpn.LastChoice
 import kotlinx.coroutines.withContext
 import ru.protonmod.next.vpn.ServerScope
 import ru.protonmod.next.vpn.ServerSelector
@@ -214,6 +215,7 @@ class CountriesViewModel @Inject constructor(
     // server list for a country or city takes longer than the navigation).
     fun selectCountry(country: String) {
         applicationScope.launch {
+            settingsManager.setLastConnectChoice(LastChoice.Country(country).encode())
             val servers = vpnRepository.getCachedServers()
             val serversInCountry = servers.filter { it.exitCountry == country }
             if (serversInCountry.isNotEmpty()) {
@@ -239,7 +241,7 @@ class CountriesViewModel @Inject constructor(
         val nav = _navState.value
         if (nav !is NavigationState.Cities) return
         applicationScope.launch {
-
+            settingsManager.setLastConnectChoice(LastChoice.City(nav.countryCode, city).encode())
             val servers = vpnRepository.getCachedServers()
             val serversInCity = servers.filter { it.exitCountry == nav.countryCode && it.city == city }
             if (serversInCity.isNotEmpty()) {
@@ -269,6 +271,7 @@ class CountriesViewModel @Inject constructor(
 
     fun selectServer(server: LogicalServer) {
         applicationScope.launch {
+            settingsManager.setLastConnectChoice(LastChoice.Server(server.id).encode())
             connectToServer(server)
         }
     }

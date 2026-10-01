@@ -1,6 +1,6 @@
 # Чем этот форк отличается от оригинала
 
-Форк проекта ProtonVPN-Next (база — коммит `e4b08fa`, версия `12.0.0-alpha2st3-38`). Все изменения проверены на реальном телефоне и покрыты юнит-тестами (184 теста проходят).
+Форк проекта ProtonVPN-Next (база — коммит `e4b08fa`, версия `12.0.0-alpha2st3-38`). Все изменения проверены на реальном телефоне и покрыты юнит-тестами (189 тестов проходят).
 
 [English version below](#english)
 
@@ -23,6 +23,8 @@
   - если VPN-процесс убит (энергосбережение прошивки, сбой), основной процесс узнаёт об этом через привязку к сервису и поднимает туннель заново — вместо вечного ложного «Подключено»;
   - VPN-процесс может разбудить приложение и попросить свежую конфигурацию (например, если сертификат истёк);
   - после обновления приложения туннель поднимается сам. Установка обновления убивает VPN-процесс, а Realme/ColorOS не перезапускает «Постоянный VPN», и с блокировкой без VPN телефон оставался без сети, пока не откроешь приложение.
+- **«Последний использованный» — это последний выбор пользователя, а не последний сервер.** Быстрое подключение в этом режиме, плитка, автоподключение и восстановление сервисом брали первый сервер из «Недавних». Туда попадал и сервер, выбранный автоматикой, и он закреплялся навсегда: однажды выбранный старой сортировкой Южный Судан возвращался при каждом подключении. Теперь запоминается выбор пользователя (самый быстрый, страна, город, сервер или цель профиля), и для него каждый раз заново выбирается лучший сервер.
+- **Smart Routing не считается «самым быстрым».** У «виртуальных» стран Proton (сервер стоит в одной стране, а IP выдаёт другую) часто низкая нагрузка и хорошая оценка. Для общего «самого быстрого» они теперь идут после обычных серверов; выбрать их явно можно по-прежнему. В журнале подключения видна пятёрка лидеров с оценкой и нагрузкой.
 - **Перебор серверов не ходит по кругу.** Когда VPN-процесс будил приложение, перебор начинался заново, и одни и те же порты одного сервера пробовались часами. Теперь перебор продолжается с места остановки (и начинается заново только через 5 минут, когда условия могли измениться), а выбранный вручную сервер, который совсем не отвечает, после 4 попыток меняется на лучший сервер в той же стране.
 - **Смена сети (вышки).** Движку сообщается только основная физическая сеть, как в официальном клиенте sing-box. Смена сети или IPv4-адреса на том же интерфейсе (`ccmni0` → новый адрес) теперь тоже считается сменой. Патч к amnezia-box (`scripts/patches/awgbox-awg-rebind.patch`): AWG-туннель при смене сети сразу пересоздаёт UDP-сокет и отправляет keepalive — в апстриме это делал только обычный WireGuard, поэтому соединение «висело», пока не сработают таймеры.
 - **Меньше фоновой нагрузки:** уведомление обновляется раз в 5 секунд, а не каждую секунду (прошивки считали это активностью в фоне).
@@ -73,7 +75,7 @@
 <a name="english"></a>
 # How this fork differs from the original
 
-A fork of ProtonVPN-Next at commit `e4b08fa`. Tested on a real phone; 184 unit tests pass.
+A fork of ProtonVPN-Next at commit `e4b08fa`. Tested on a real phone; 189 unit tests pass.
 
 **Connection stability**
 - "Fastest" only picks servers that are online and have a WireGuard key. Servers under maintenance kept a load of 0 and used to win. One shared `ServerSelector` replaces ten copies of that logic.
@@ -84,6 +86,7 @@ A fork of ProtonVPN-Next at commit `e4b08fa`. Tested on a real phone; 184 unit t
 - When the network really changes (Wi-Fi ↔ cellular, a new address), the tunnel restarts after 1.5 s unless the server answered in that time: in field logs the socket rebind alone never recovered the link (0 of 22). A short wake lock (60 s max, released once verified) keeps recovery timers from running late on a sleeping phone. Fixed a race where a handshake answer from the old engine "verified" a new one that had not started yet, leaving it without a stall detector: "Connected" with no traffic all night.
 - On a network change, only the default physical network is published. A new network or address on the same interface also counts as a change. A patch to amnezia-box makes the AWG endpoint rebind its socket and send a keepalive immediately, which upstream did only for plain WireGuard.
 - The tunnel comes back by itself after an app update; ColorOS did not restart Always-on VPN, leaving the phone offline under lockdown.
+- "Last used" quick connect, the tile and auto-connect follow the user's last choice (fastest, country, city, server or profile target) instead of the most recent server, which pinned automatic picks forever. Smart Routing locations rank after real ones for a generic "fastest".
 - Failover no longer starts over each time the VPN process wakes the app (it retried the same ports for hours); an exact server that does not answer is replaced by the best one in its country after 4 attempts.
 - The notification refreshes every 5 s instead of every second.
 

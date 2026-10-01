@@ -153,15 +153,19 @@ class VpnAutomationManager @Inject constructor(
             return null
         }
 
-        val recentId = recentConnectionDao.getRecentConnections().first().firstOrNull()?.serverId
-        val recent = servers.find { it.id == recentId }?.takeIf(ServerSelector::isUsable)
-        val logical = recent ?: ServerSelector.fastest(servers) ?: run {
+        // Follow the quick-connect setting. "Last used" is the last choice of the user; it used to
+        // be the most recent server, which kept an automatic pick forever.
+        val choice = when (settingsManager.quickConnectStrategy.first()) {
+            "fastest" -> LastChoice.Fastest
+            "server" -> settingsManager.quickConnectTargetId.first()?.let(LastChoice::Server) ?: LastChoice.Fastest
+            else -> LastChoice.decode(settingsManager.lastConnectChoice.first()) ?: LastChoice.Fastest
+        }
+        val (logical, scope) = choice.resolve(servers) ?: run {
             ProtonLogger.w(TAG, "$caller: No online server available.")
             return null
         }
+        ProtonLogger.i(TAG, "$caller: ${choice.encode()} -> ${logical.name}; ranking: ${ServerSelector.describeTop(servers)}")
         val physical = ServerSelector.pickPhysical(logical) ?: return null
-        // A recent server may be swapped for another one in its country if it stops answering.
-        val scope = if (recent != null) ServerScope.Country(logical.exitCountry) else ServerScope.AnyServer
         return Target(logical, physical, session, scope)
     }
 }

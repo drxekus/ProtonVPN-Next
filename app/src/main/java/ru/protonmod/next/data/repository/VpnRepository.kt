@@ -464,7 +464,8 @@ open class VpnRepository @Inject constructor(
             }
 
             cachedServers = logicalServers
-            
+            ProtonLogger.i(TAG, "Fastest ranking after sync: ${ServerSelector.describeTop(logicalServers)}")
+
             // Metrics
             val duration = System.currentTimeMillis()            // Metrics
             ProtonLogger.recordDistribution("server_fetch_latency", duration.toDouble())

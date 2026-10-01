@@ -37,7 +37,9 @@ data class ServerEntity(
     val averageLoad: Int = 0,
     val physicalServersJson: String, // Save physical servers as a JSON string
     /** See [LogicalServer.score]. */
-    @ColumnInfo(defaultValue = "0") val score: Double = 0.0
+    @ColumnInfo(defaultValue = "0") val score: Double = 0.0,
+    /** See [LogicalServer.hostCountry]. */
+    val hostCountry: String? = null
 )
 
 // --- DAO ---
@@ -83,7 +85,8 @@ object ServerMapper {
             features = server.features,
             averageLoad = server.averageLoad,
             physicalServersJson = json.encodeToString(sanitizedPhysicalServers),
-            score = server.score
+            score = server.score,
+            hostCountry = server.hostCountry?.takeIf { it.isNotBlank() && !it.equals("null", ignoreCase = true) }
         )
     }
 
@@ -102,7 +105,8 @@ object ServerMapper {
                 emptyList()
             },
             averageLoad = entity.averageLoad,
-            score = entity.score
+            score = entity.score,
+            hostCountry = entity.hostCountry
         )
     }
 }

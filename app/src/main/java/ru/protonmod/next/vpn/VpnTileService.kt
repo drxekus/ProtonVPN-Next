@@ -163,11 +163,9 @@ class VpnTileService : TileService() {
 
         when (strategy) {
             "recent" -> {
-                // The most recent server, as on the dashboard; the fastest one only when the
-                // recent server is gone or offline.
-                val recentId = recentConnectionDao.getRecentConnections().first().firstOrNull()?.serverId
-                val recent = servers.find { it.id == recentId }?.takeIf(ServerSelector::isUsable)
-                if (recent != null) initiateConnection(recent) else connectToFastest(servers)
+                // The last choice of the user, as on the dashboard (see LastChoice).
+                val choice = LastChoice.decode(settingsManager.lastConnectChoice.first()) ?: LastChoice.Fastest
+                choice.resolve(servers)?.let { (server, scope) -> initiateConnection(server, failoverScope = scope) }
             }
             "server" -> {
                 val target = servers.find { it.id == targetId }

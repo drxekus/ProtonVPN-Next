@@ -42,6 +42,11 @@ data class LogicalServer(
      * distance from the user, which is what the official client's "Fastest" uses. 0 = unknown.
      */
     @SerialName("Score") val score: Double = 0.0,
+    /**
+     * Where the server physically is, when that differs from its exit country (Proton's Smart
+     * Routing: e.g. a South Sudan exit hosted elsewhere); null for ordinary servers.
+     */
+    @SerialName("HostCountry") val hostCountry: String? = null,
     // UI convenience fields
     var averageLoad: Int = 0,
     var localizedCity: String? = null

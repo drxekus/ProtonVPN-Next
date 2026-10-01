@@ -57,6 +57,10 @@ object ServerSelector {
     fun isOnline(server: PhysicalServer): Boolean =
         server.status == 1 && !server.wgPublicKey.isNullOrBlank()
 
+    /** Proton's Smart Routing: the exit country is not where the server physically is. */
+    fun isVirtualLocation(server: LogicalServer): Boolean =
+        server.hostCountry != null && server.hostCountry != server.exitCountry
+
     /** A logical server has at least one physical server that can take a connection. */
     fun isUsable(server: LogicalServer): Boolean = server.servers.any(::isOnline)
 
@@ -87,12 +91,27 @@ object ServerSelector {
 
     /**
      * The best server for a generic "fastest" connection. Secure Core and Tor servers are only
-     * used when the user asks for them explicitly, as in the official client.
+     * used when the user asks for them explicitly, as in the official client. Smart Routing
+     * locations come after real ones: they are often lightly loaded and scored as near (they are
+     * hosted elsewhere), but their exit IP is in a far country, which is not what "fastest" means
+     * to a user. Within a country choice every server is in that country, so nothing changes.
      */
     fun fastest(servers: Collection<LogicalServer>, exclude: Set<String> = emptySet()): LogicalServer? {
         val candidates = servers.filter { it.id !in exclude }
         val regular = candidates.filter { it.features and (FEATURE_SECURE_CORE or FEATURE_TOR) == 0 }
-        return rank(regular).firstOrNull() ?: rank(candidates).firstOrNull()
+        return rank(regular.filterNot(::isVirtualLocation)).firstOrNull()
+            ?: rank(regular).firstOrNull()
+            ?: rank(candidates).firstOrNull()
+    }
+
+    /** The top of the generic ranking, for logs: why "fastest" picked what it picked. */
+    fun describeTop(servers: Collection<LogicalServer>, limit: Int = 5): String {
+        val regular = servers.filter { it.features and (FEATURE_SECURE_CORE or FEATURE_TOR) == 0 }
+        val ranked = rank(regular.filterNot(::isVirtualLocation)) + rank(regular.filter(::isVirtualLocation))
+        return ranked.take(limit).joinToString { server ->
+            val host = server.hostCountry?.takeIf { isVirtualLocation(server) }?.let { "@$it" }.orEmpty()
+            "${server.name}$host score=${"%.2f".format(server.score)} load=${server.averageLoad}"
+        } + " (scored: ${servers.count { it.score > 0.0 }}/${servers.size}, virtual: ${servers.count(::isVirtualLocation)})"
     }
 
     /** Resolves a profile target: exact server, then city, then country, then anything. */
