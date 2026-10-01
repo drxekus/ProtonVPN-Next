@@ -1,6 +1,6 @@
 # Чем этот форк отличается от оригинала
 
-Форк проекта ProtonVPN-Next (база — коммит `e4b08fa`, версия `12.0.0-alpha2st3-38`). Все изменения проверены на реальном телефоне (Realme RMX3357, Android 13, мобильная сеть в России) и покрыты юнит-тестами (174 теста проходят).
+Форк проекта ProtonVPN-Next (база — коммит `e4b08fa`, версия `12.0.0-alpha2st3-38`). Все изменения проверены на реальном телефоне и покрыты юнит-тестами (177 тестов проходят).
 
 [English version below](#english)
 
@@ -8,7 +8,8 @@
 
 **Проблема:** приложение показывало «Подключено» с зелёным замком, хотя трафик не шёл; в фоне VPN сам отключался после короткого обрыва сети (смена вышки) и не поднимался, пока не откроешь приложение; иногда соединение «подвисало» на 15–25 секунд.
 
-- **«Самый быстрый» сервер выбирается только среди работающих.** Серверы на обслуживании не получают нагрузку от API Proton, она оставалась равной 0 — и именно они выбирались «самыми быстрыми». Новый общий `ServerSelector` берёт только серверы с онлайн-узлами и ключом WireGuard, серверы без данных о нагрузке ставит в конец, Secure Core и Tor — только если больше ничего нет. Одна логика для главного экрана, плитки, виджетов, автоподключения, стран, профилей и ротации IP (раньше — десять копий).
+- **«Самый быстрый» сервер — действительно ближайший из работающих.** Серверы на обслуживании не получают нагрузку от API Proton, она оставалась равной 0 — и именно они выбирались «самыми быстрыми». Новый общий `ServerSelector` берёт только серверы с онлайн-узлами и ключом WireGuard, серверы без данных о нагрузке ставит в конец, Secure Core и Tor — только если больше ничего нет. Одна логика для главного экрана, плитки, виджетов, автоподключения, стран, профилей и ротации IP (раньше — десять копий).
+- **Сортировка по `Score` от Proton, как в официальном клиенте.** Раньше серверы сортировались только по нагрузке, и «самыми быстрыми» оказывались полупустые серверы на другом континенте. `Score` учитывает и нагрузку, и расстояние. Proton считает его по адресу, с которого пришёл запрос, а через туннель или зеркало API это неправильное место. Поэтому приложение, как и официальный клиент, передаёт заголовок `x-pm-netzone` с сетью пользователя (реальный IP с обнулённым последним октетом; Proton и так видит этот IP без VPN).
 - **Честный статус «Подключено».** Он появляется только после рукопожатия WireGuard (движок переключён на уровень логов `debug` — на `info` рукопожатия не видны) и, в режимах «Сбалансированный» и «Агрессивный», после настоящего HTTPS-запроса через новую VPN-сеть. Раньше при неудачной проверке приложение всё равно писало «Подключено», а монитор сети был зарегистрирован с `NOT_VPN` и VPN-сеть вообще не видел.
 - **Автоматический перебор.** Если сервер не отвечает, пробуются другие его узлы и порты, затем — для «самого быстрого», страны или города — следующий сервер в тех же пределах. Порт «Авто» начинает с последнего сработавшего, а не выбирается случайно.
 - **VPN-сервис больше не сдаётся:**
@@ -16,8 +17,13 @@
   - при потере сети ждёт её и переподключается с нарастающей паузой (раньше — остановка, если не включён скрытый «kill switch», который можно было включить только через AI);
   - повторные подключения сохраняют раздельное туннелирование;
   - если рукопожатия нет 25 секунд — туннель перезапускается;
+  - при реальной смене сети (Wi-Fi ↔ мобильная, новый адрес) туннель перезапускается через 1,5 секунды, если за это время от сервера ничего не пришло. По журналам перепривязка сокета сама не восстановила связь ни разу из 22 случаев, и соединение висело до срабатывания 25-секундного сторожа;
+  - на время проверки и восстановления удерживается короткая блокировка сна (не дольше 60 секунд, снимается сразу после подтверждения). Без неё таймеры спящего телефона опаздывали: перезапуск с задержкой 1 секунда стартовал через 51 секунду;
+  - исправлена гонка, из-за которой туннель мог провисеть «Подключено» без сети всю ночь: ответ на рукопожатие от старого движка «подтверждал» новый, ещё не запущенный, и для нового движка не включался сторож зависаний;
   - если VPN-процесс убит (энергосбережение прошивки, сбой), основной процесс узнаёт об этом через привязку к сервису и поднимает туннель заново — вместо вечного ложного «Подключено»;
-  - VPN-процесс может разбудить приложение и попросить свежую конфигурацию (например, если сертификат истёк).
+  - VPN-процесс может разбудить приложение и попросить свежую конфигурацию (например, если сертификат истёк);
+  - после обновления приложения туннель поднимается сам. Установка обновления убивает VPN-процесс, а Realme/ColorOS не перезапускает «Постоянный VPN», и с блокировкой без VPN телефон оставался без сети, пока не откроешь приложение.
+- **Перебор серверов не ходит по кругу.** Когда VPN-процесс будил приложение, перебор начинался заново, и одни и те же порты одного сервера пробовались часами. Теперь перебор продолжается с места остановки (и начинается заново только через 5 минут, когда условия могли измениться), а выбранный вручную сервер, который совсем не отвечает, после 4 попыток меняется на лучший сервер в той же стране.
 - **Смена сети (вышки).** Движку сообщается только основная физическая сеть, как в официальном клиенте sing-box. Смена сети или IPv4-адреса на том же интерфейсе (`ccmni0` → новый адрес) теперь тоже считается сменой. Патч к amnezia-box (`scripts/patches/awgbox-awg-rebind.patch`): AWG-туннель при смене сети сразу пересоздаёт UDP-сокет и отправляет keepalive — в апстриме это делал только обычный WireGuard, поэтому соединение «висело», пока не сработают таймеры.
 - **Меньше фоновой нагрузки:** уведомление обновляется раз в 5 секунд, а не каждую секунду (прошивки считали это активностью в фоне).
 - **Мелочи:** повторное нажатие на сервер при неработающем туннеле больше не игнорируется; состояние «Подключение…» после ошибки сбрасывается; «Connect & Go» ждёт проверенного туннеля; прокси ByeDPI для обхода блокировки API запускается при старте приложения (раньше — только после открытия настроек); профили передают все параметры обфускации (S3/S4, I2–I5).
@@ -36,6 +42,9 @@
 
 - У каждого пункта настроек — кнопка ⓘ с описанием, что он делает на самом деле, когда его включать и что стоит по умолчанию (русский и английский).
 - Удалён переключатель «Ожидать завершения проверки»: проверка теперь всегда честная.
+- Нажатие на страну или город снова подключает к лучшему серверу в ней («три точки» — список городов и серверов). Раньше экран уходил на главную раньше, чем успевал прочитать список серверов, и подключение отменялось. То же исправлено для профилей.
+- Предупреждение «VPN-сервер не отвечает» снимается при отключении.
+- В описании раздельного туннелирования сказано, что при «Блокировать соединения без VPN» Android отрезает исключённым приложениям интернет. В README — как дать им прямой доступ через системный список исключений блокировки.
 - Исправлены ошибки в текстах: описание экрана загрузки серверов, подпись поля длительности паузы, подзаголовки Kill Switch и «Выйти», поле DNS обещало поддержку IPv6.
 
 ## Сборка и диагностика
@@ -55,14 +64,18 @@
 <a name="english"></a>
 # How this fork differs from the original
 
-A fork of ProtonVPN-Next at commit `e4b08fa`. Tested on a real phone (Realme RMX3357, Android 13, Russian mobile network); 174 unit tests pass.
+A fork of ProtonVPN-Next at commit `e4b08fa`. Tested on a real phone; 177 unit tests pass.
 
 **Connection stability**
 - "Fastest" only picks servers that are online and have a WireGuard key. Servers under maintenance kept a load of 0 and used to win. One shared `ServerSelector` replaces ten copies of that logic.
+- Servers are ranked by Proton's `Score` (load and distance), like the official client, instead of load alone, which made half-empty servers on another continent "fastest". The app sends `x-pm-netzone` (the user's network, last IPv4 octet zeroed) so the score is computed for the user rather than for the tunnel or API mirror.
 - "Connected" is shown only after a real WireGuard handshake and, in Balanced/Aggressive mode, an HTTPS round trip through the new VPN network. The old check reported success even when it failed, and its network monitor could not see VPN networks at all.
 - A silent server is replaced automatically: first its other nodes and ports, then the next server in the chosen scope (fastest, country or city). The "Auto" port starts from the last one that worked.
 - The VPN service restores the last tunnel on sticky restart and Always-on start. It waits for a network and retries with backoff instead of stopping, preserves split tunnelling on retries, and restarts a stalled tunnel after 25 s without a handshake. The app notices a killed VPN process through a service binding and brings the tunnel back.
+- When the network really changes (Wi-Fi ↔ cellular, a new address), the tunnel restarts after 1.5 s unless the server answered in that time: in field logs the socket rebind alone never recovered the link (0 of 22). A short wake lock (60 s max, released once verified) keeps recovery timers from running late on a sleeping phone. Fixed a race where a handshake answer from the old engine "verified" a new one that had not started yet, leaving it without a stall detector: "Connected" with no traffic all night.
 - On a network change, only the default physical network is published. A new network or address on the same interface also counts as a change. A patch to amnezia-box makes the AWG endpoint rebind its socket and send a keepalive immediately, which upstream did only for plain WireGuard.
+- The tunnel comes back by itself after an app update; ColorOS did not restart Always-on VPN, leaving the phone offline under lockdown.
+- Failover no longer starts over each time the VPN process wakes the app (it retried the same ports for hours); an exact server that does not answer is replaced by the best one in its country after 4 attempts.
 - The notification refreshes every 5 s instead of every second.
 
 **Privacy and security**
@@ -75,6 +88,8 @@ A fork of ProtonVPN-Next at commit `e4b08fa`. Tested on a real phone (Realme RMX
 
 **UI**
 - Every setting has an ⓘ explanation in English and Russian. Several wrong labels are fixed.
+- Tapping a country or city connects to its best server again (the screen used to navigate away and cancel the connection); the same fix applies to profiles. The "server not responding" warning clears on disconnect.
+- The split tunnelling note explains that Android's "Block connections without VPN" cuts excluded apps off; the README shows the lockdown allowlist workaround.
 
 **Build and diagnostics**
 - The AWGBox script works on Windows and rebuilds the core when the set of patches changes.

@@ -19,7 +19,7 @@
 2. **VPN не восстанавливался сам.** После короткого обрыва сети (смена вышки) или после того, как система выгрузила процесс, VPN отключался и не поднимался, пока не откроешь приложение.
 3. **Данные уходили на серверы автора мода**, включая ваш реальный IP в обход VPN.
 
-Все три исправлены. Изменения проверены на реальном телефоне, 174 юнит-теста проходят.
+Все три исправлены. Изменения проверены на реальном телефоне, 177 юнит-тестов проходят.
 
 | | Оригинал | Этот форк |
 |---|---|---|
@@ -83,9 +83,12 @@
 
 ## Установка
 
-Готовых APK пока нет, приложение собирается из исходников.
+Готовый APK лежит на странице [Releases](https://github.com/drxekus/ProtonVPN-Next/releases), рядом указан его SHA-256. Проверить хэш: `sha256sum ProtonVPN-Next-fork-*.apk` (Linux/macOS) или `certutil -hashfile <файл> SHA256` (Windows).
 
-- **Рекомендуемый вариант — `stablePrivacy`** (пакет `ru.protonmod.next.privacy`). Он ставится рядом с оригиналом, не конфликтуя с ним.
+- Релиз подписан ключом этого форка. Пакет — `ru.protonmod.next.privacy`, как у privacy-сборки оригинала. Если она установлена, её нужно сначала удалить (Android не обновит приложение с чужой подписью). Это и к лучшему, см. «Если вы пользовались оригиналом».
+- Обычная сборка оригинала (`ru.protonmod.next`) с релизом форка не конфликтует, но её тоже стоит удалить.
+- Только arm64 (64-битные телефоны), Android 10+.
+- **Если собираете сами, рекомендуемый вариант — `stablePrivacy`** (пакет `ru.protonmod.next.privacy`).
 - В этом форке у **обоих** вариантов (`standard` и `privacy`) выключены Sentry и OTA. Они отличаются только ID пакета.
 
 ### Сборка
@@ -109,6 +112,22 @@ keytool -list -v -keystore ~/.android/debug.keystore -storepass android | grep S
 2. **Батарея:** без ограничений / разрешить фоновую активность.
 3. **Настройки → VPN → шестерёнка у приложения:** включить **«Постоянный VPN»** и **«Блокировать соединения без VPN»**. Тогда при любом обрыве трафик других приложений не утечёт мимо VPN, а приложение поднимет туннель само.
 4. На Realme/ColorOS можно закрепить приложение в «Недавних» (замок на карточке), чтобы смахивание не убивало VPN.
+
+### Раздельное туннелирование вместе с «Блокировать соединения без VPN»
+
+Когда включена блокировка, Android сам отрезает любой трафик мимо VPN. Поэтому исключённые приложения, IP-адреса и домены остаются без интернета. Приложение VPN это обойти не может: так устроен Android.
+
+Для **приложений** в Android есть системный список исключений блокировки. В обычных настройках его нет, но его можно задать через ADB. Приложения из этого списка ходят в интернет напрямую, а остальные по-прежнему защищены блокировкой. Для IP-адресов и доменов такого списка нет.
+
+1. Узнайте имена пакетов: `adb shell pm list packages | grep -i bank`.
+2. Задайте список через запятую, без пробелов:
+   ```bash
+   adb shell settings put secure always_on_vpn_lockdown_whitelist com.example.bank,com.example.maps
+   ```
+3. Перезагрузите телефон: Android читает список при запуске.
+4. В приложении добавьте эти же приложения в исключения раздельного туннелирования.
+
+Проверка: `adb shell settings get secure always_on_vpn_lockdown_whitelist`. Если в настройках Android выключить и снова включить «Постоянный VPN» или блокировку, система сотрёт список, и команду придётся повторить. Убрать список: `adb shell settings delete secure always_on_vpn_lockdown_whitelist`, затем перезагрузка. Работу на конкретной прошивке нужно проверить: производитель мог изменить это поведение.
 
 ### Диагностика
 
@@ -164,7 +183,7 @@ This section describes what the original code did and allowed. It is not proof o
 
 ## Install
 
-There are no binaries yet; build `stablePrivacy` from source:
+Download the APK from [Releases](https://github.com/drxekus/ProtonVPN-Next/releases) and check its SHA-256. It is signed with this fork's key and uses the package `ru.protonmod.next.privacy`, so uninstall the original's privacy build first. It requires arm64 and Android 10+. To build `stablePrivacy` yourself:
 
 ```bash
 ./gradlew :app:assembleStablePrivacyDebug -PEXPECTED_SIGNATURE="<your signing cert SHA-256>"
@@ -176,5 +195,12 @@ For reliable background operation on aggressive OEM ROMs:
 - allow auto-start;
 - remove battery restrictions;
 - enable Android's "Always-on VPN" with "Block connections without VPN".
+
+**Split tunnelling with "Block connections without VPN".** With blocking on, Android drops all traffic that bypasses the VPN, so excluded apps, IPs and domains have no internet. For apps, Android has a hidden lockdown allowlist:
+1. Run `adb shell settings put secure always_on_vpn_lockdown_whitelist pkg1,pkg2`.
+2. Reboot.
+3. Exclude the same apps in the app's split tunnelling.
+
+Toggling Always-on or blocking in Android settings clears the list. There is no such list for IPs and domains.
 
 License: GPL-3.0. Based on ProtonVPN-Next by SMH01, with copyright notices retained. Report issues at [Issues](https://github.com/drxekus/ProtonVPN-Next/issues).
