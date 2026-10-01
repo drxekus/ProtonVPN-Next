@@ -114,6 +114,10 @@ class AmneziaVpnManager @Inject constructor(
         private const val MAX_FAILOVER_ATTEMPTS = 8
         /** Endpoints of one server to try before a scoped connection moves to another server. */
         private const val ATTEMPTS_PER_SCOPED_SERVER = 2
+        /** An exact server gets this many endpoints before the rest of its country is tried. */
+        private const val ATTEMPTS_PER_EXACT_SERVER = 4
+        /** Endpoints that failed longer ago than this may work again (another network, a lifted block). */
+        private const val FAILOVER_MEMORY_MS = 5 * 60_000L
         /** How long a restarted VPN service may take to report back before the tunnel counts as down. */
         private val SERVICE_RESTART_GRACE = 15.seconds
     }
@@ -216,6 +220,7 @@ class AmneziaVpnManager @Inject constructor(
         val failedServers = mutableSetOf<String>()
         var attempts = 0
         var attemptsOnServer = 0
+        val startedAt = SystemClock.elapsedRealtime()
     }
 
     @Volatile
@@ -616,10 +621,13 @@ class AmneziaVpnManager @Inject constructor(
         val servers = vpnRepositoryProvider.get().getCachedServers()
         val ports = if (isAutoPort(request.overridePort)) autoPortOrder()
         else listOf(request.port.takeIf { it != 0 } ?: resolvePort(request.overridePort))
-        val scope = request.failoverScope
-        val sameServerBudget = if (scope == null) MAX_FAILOVER_ATTEMPTS else ATTEMPTS_PER_SCOPED_SERVER
-
         val current = servers.find { it.id == request.logicalServerId }
+        // An exact server that does not answer at all is replaced by the best one in its country:
+        // its ports used to be retried in a circle for as long as the block lasted.
+        val scope = request.failoverScope ?: current?.let { ServerScope.Country(it.exitCountry) }
+        val sameServerBudget =
+            if (request.failoverScope == null) ATTEMPTS_PER_EXACT_SERVER else ATTEMPTS_PER_SCOPED_SERVER
+
         if (current != null && state.attemptsOnServer < sameServerBudget) {
             val physicals = ServerSelector.onlinePhysicalServers(current).take(2)
             for (port in ports) {
@@ -937,15 +945,18 @@ class AmneziaVpnManager @Inject constructor(
             return true
         }
         val session = sessionDao.getSession() ?: return false
-        startBackgroundAttempt(request.logicalServerId)
+        // Continue the current round of failover instead of starting it over: a fresh state
+        // retried the same ports again and again while nothing answered.
+        val keepFailover = SystemClock.elapsedRealtime() - failover.startedAt < FAILOVER_MEMORY_MS
+        startBackgroundAttempt(request.logicalServerId, resetFailover = !keepFailover)
         connectInternal(request, session, background = true)
         return true
     }
 
-    private fun startBackgroundAttempt(logicalServerId: String) {
+    private fun startBackgroundAttempt(logicalServerId: String, resetFailover: Boolean = true) {
         connectionJob?.cancel()
         verificationJob?.cancel()
-        failover = FailoverState()
+        if (resetFailover) failover = FailoverState()
         currentServerId = logicalServerId
         updateVpnState(VpnState.CONNECTING)
         _isConnecting.value = true
@@ -1405,6 +1416,8 @@ class AmneziaVpnManager @Inject constructor(
         pauseJob?.cancel()
         _isConnecting.value = false
         isPaused = false
+        // "Server not responding" is about a connection that no longer exists.
+        if (_connectionWarning.value == ConnectionWarning.ServerNotResponding) _connectionWarning.value = null
         applicationScope.launch { settingsManager.setPauseEndTime(0) }
 
         applicationScope.launch {

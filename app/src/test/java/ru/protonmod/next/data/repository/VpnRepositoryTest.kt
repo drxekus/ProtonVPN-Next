@@ -79,6 +79,9 @@ class VpnRepositoryTest {
     @Mock
     private lateinit var cryptoWrapper: ru.protonmod.next.utils.crypto.CryptoWrapper
 
+    @Mock
+    private lateinit var settingsManager: ru.protonmod.next.data.local.SettingsManager
+
     private val testDispatcher = StandardTestDispatcher()
     
     private val testDispatcherProvider = object : DispatcherProvider {
@@ -98,7 +101,7 @@ class VpnRepositoryTest {
         repository = object : VpnRepository(
             vpnApi, database, serverDao, sessionDao, serversCacheDao,
             cityTranslationDao, profileDao, recentConnectionDao,
-            cityRepository, testDispatcherProvider, cryptoWrapper, testScope
+            cityRepository, testDispatcherProvider, cryptoWrapper, testScope, settingsManager
         ) {
             override suspend fun <R> performTransaction(block: suspend () -> R): R = block()
         }
@@ -185,10 +188,11 @@ class VpnRepositoryTest {
             lastModified = anyOrNull(),
             locale = anyOrNull(),
             protocols = anyOrNull(),
-            withState = any()
+            withState = any(),
+            netzone = anyOrNull()
         )).thenReturn(Response.success(logicalServersResponse))
 
-        whenever(vpnApi.getLoads(any(), any())).thenReturn(
+        whenever(vpnApi.getLoads(any(), any(), anyOrNull())).thenReturn(
             Response.success(loadsJson.toResponseBody())
         )
         
@@ -208,5 +212,13 @@ class VpnRepositoryTest {
         // Verify DB interactions
         verify(serverDao, atLeastOnce()).upsertServers(any())
         verify(serversCacheDao, atLeastOnce()).saveCacheInfo(any())
+    }
+
+    @Test
+    fun `netzone keeps the network and drops the host part`() {
+        assertEquals("212.32.192.0", VpnRepository.netzoneOf("212.32.192.34"))
+        assertEquals(null, VpnRepository.netzoneOf("2001:db8::1"))
+        assertEquals(null, VpnRepository.netzoneOf("unknown"))
+        assertEquals(null, VpnRepository.netzoneOf(null))
     }
 }

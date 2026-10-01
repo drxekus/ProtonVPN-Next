@@ -33,6 +33,7 @@ import android.os.Binder
 import android.os.Build
 import android.os.IBinder
 import android.os.ParcelFileDescriptor
+import android.os.PowerManager
 import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -127,6 +128,8 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
         const val ACTION_STATS_UPDATED = "ru.protonmod.next.vpn.STATS_UPDATED"
         const val ACTION_SET_VERIFIED = "ru.protonmod.next.vpn.SET_VERIFIED"
         const val ACTION_QUERY_STATE = "ru.protonmod.next.vpn.QUERY_STATE"
+        /** Restore the last tunnel unless the user turned the VPN off (e.g. after an app update). */
+        const val ACTION_RESUME = "ru.protonmod.next.vpn.RESUME"
         /** Sent to the app whenever a tunnel attempt turns out not to carry traffic. */
         const val ACTION_TUNNEL_FAILED = "ru.protonmod.next.vpn.TUNNEL_FAILED"
         /**
@@ -171,6 +174,7 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
         const val FAILURE_TRANSPORT = "transport_failure"
         const val FAILURE_ENGINE = "engine_failure"
         const val FAILURE_PERMANENT = "permanent_failure"
+        const val FAILURE_NETWORK_CHANGED = "network_changed"
 
         private const val NOTIFICATION_ID = 1001
         private const val CHANNEL_ID = "vpn_status_channel"
@@ -186,6 +190,10 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
         /** WireGuard retries a handshake every 5 s; this long without an answer is a dead tunnel. */
         private const val HANDSHAKE_STALL_MS = 25_000L
         private const val HEALTH_TICK_MS = 5_000L
+        /** How long the tunnel may take to answer on a new network before it is restarted. */
+        private const val NETWORK_CHANGE_SETTLE_MS = 1_500L
+        /** Upper bound for keeping the phone awake while one recovery runs. */
+        private const val RECOVERY_WAKE_LOCK_MS = 60_000L
         private const val NOTIFICATION_REFRESH_MS = 5_000L
         private const val APP_REQUEST_THROTTLE_MS = 30_000L
         private val APP_CONFIG_WAIT = 60.seconds
@@ -227,6 +235,8 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
     private var handshakeVerificationJob: Job? = null
     private var healthJob: Job? = null
     private var appConfigWaitJob: Job? = null
+    private var networkChangeJob: Job? = null
+    private var recoveryWakeLock: PowerManager.WakeLock? = null
     private var engineJob: Job? = null
     private var shutdownJob: Job? = null
     private val lifecycleGeneration = AtomicLong(0)
@@ -257,6 +267,7 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
     @Volatile private var handshakeObserved = false
     /** When the current unanswered handshake initiation started, or 0 when none is pending. */
     @Volatile private var pendingInitiationSince = 0L
+    @Volatile private var lastHandshakeResponseAt = 0L
     private var lastRx = 0L
     private var lastTx = 0L
     private var lastSpeed: String? = null
@@ -287,7 +298,7 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
         // Libbox.setup is a long-running native call; run it on IO to avoid blocking the main
         // thread and triggering a Background ANR.
         scope.launch(Dispatchers.IO) { initializeLibbox() }
-        platform = AwgBoxPlatform(this, vpnNetworkMonitor) { descriptor ->
+        platform = AwgBoxPlatform(this, vpnNetworkMonitor, ::onNetworkPathChanged) { descriptor ->
             tunDescriptor?.close()
             tunDescriptor = descriptor
         }
@@ -376,6 +387,7 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
             // service on the spot, which with "Block connections without VPN" left the phone
             // offline until the app was opened again.
             null, SERVICE_INTERFACE -> handleSystemStart(alwaysOn = intent != null)
+            ACTION_RESUME -> handleSystemStart(alwaysOn = false)
             else -> {
                 if (state == VpnTunnelState.DOWN && !connecting) {
                     stopForeground(STOP_FOREGROUND_REMOVE)
@@ -444,11 +456,13 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
     }
 
     private fun markVerified() {
-        if (verified || state != VpnTunnelState.UP) return
+        // While a new engine is starting, a handshake answer still belongs to the old one.
+        if (verified || state != VpnTunnelState.UP || connecting) return
         VpnEventLog.log("verified")
         verified = true
         connecting = false
         recoveryAttempt = 0
+        releaseRecoveryWakeLock()
         handshakeVerificationJob?.cancel()
         handshakeVerificationJob = null
         sendState(VpnTunnelState.UP)
@@ -495,7 +509,14 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
         val generation = lifecycleGeneration.incrementAndGet()
         handshakeVerificationJob?.cancel()
         handshakeVerificationJob = null
+        networkChangeJob?.cancel()
+        networkChangeJob = null
         stopHealthMonitor()
+        stopTrafficUpdates()
+        // The running engine is being replaced. Leaving the state UP let a late handshake answer
+        // of the old engine "verify" the new one before it existed, which then skipped starting
+        // the new engine's health monitor: the tunnel stayed "connected" and dead all night.
+        state = VpnTunnelState.DOWN
         handshakeObserved = false
         pendingInitiationSince = 0L
         // Only a WireGuard handshake proves the server accepted us; "engine started" does not.
@@ -518,6 +539,8 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
                     currentCoroutineContext().ensureActive()
                     if (lifecycleGeneration.get() != generation) return@withLock
                     closeEngine()
+                    handshakeObserved = false
+                    pendingInitiationSince = 0L
 
                     if (!vpnNetworkMonitor.hasUsableUnderlyingNetwork()) {
                         // Without an underlying network the engine cannot bind an outbound
@@ -557,7 +580,7 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
                         startingCommandServer = null
                         adopted = true
                         withContext(Dispatchers.Main) {
-                            if (lifecycleGeneration.get() != generation || !connecting) return@withContext
+                            if (lifecycleGeneration.get() != generation) return@withContext
                             state = VpnTunnelState.UP
                             connecting = false
                             VpnEventLog.log("engine up")
@@ -672,6 +695,7 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
      */
     private fun scheduleRecovery(reason: String) {
         val retry = lastConnectIntent ?: return
+        holdRecoveryWakeLock()
         connecting = true
         verified = false
         sendTunnelFailed(reason)
@@ -688,7 +712,10 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
             if (!vpnNetworkMonitor.hasUsableUnderlyingNetwork()) {
                 ProtonLogger.i(TAG, "Waiting for a network before reconnecting")
                 VpnEventLog.log("waiting for a network")
+                // Waiting can take hours; the network callback wakes the phone when one appears.
+                releaseRecoveryWakeLock()
                 vpnNetworkMonitor.awaitUsableUnderlyingNetwork()
+                holdRecoveryWakeLock()
             }
             // This process can only replay the same configuration. After a few failures, wake
             // the app so it can refresh the certificate or move to another server.
@@ -732,6 +759,8 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
     private fun stopTunnel() {
         VpnEventLog.log("stop requested")
         manualDisconnect = true
+        networkChangeJob?.cancel()
+        releaseRecoveryWakeLock()
         snapshotStore.userStopped = true
         val generation = lifecycleGeneration.incrementAndGet()
         reconnectJob?.cancel()
@@ -1033,6 +1062,7 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
             isAwgHandshakeSuccess(message) -> {
                 handshakeObserved = true
                 pendingInitiationSince = 0L
+                lastHandshakeResponseAt = SystemClock.elapsedRealtime()
                 scope.launch {
                     if (state == VpnTunnelState.UP && !verified) {
                         ProtonLogger.i(TAG, "AmneziaWG handshake confirmed")
@@ -1044,6 +1074,58 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
                 if (pendingInitiationSince == 0L) pendingInitiationSince = SystemClock.elapsedRealtime()
             }
         }
+    }
+
+    /**
+     * The phone moved to another network (Wi-Fi/cellular, a new cell session or address). In
+     * field logs the AWG socket rebind never brought the tunnel back by itself: every time it
+     * took the 25 s stall detector and a restart. Restart right away unless the server answers
+     * a handshake on the new path within a moment.
+     */
+    private fun onNetworkPathChanged() {
+        scope.launch {
+            if (state != VpnTunnelState.UP || connecting || manualDisconnect) return@launch
+            val changedAt = SystemClock.elapsedRealtime()
+            holdRecoveryWakeLock()
+            val uid = applicationInfo.uid
+            val rxAtChange = TrafficStats.getUidRxBytes(uid)
+            VpnEventLog.log("network path changed while connected")
+            networkChangeJob?.cancel()
+            networkChangeJob = scope.launch {
+                delay(NETWORK_CHANGE_SETTLE_MS)
+                if (state != VpnTunnelState.UP || connecting || manualDisconnect) return@launch
+                // A handshake or any data from the server on the new path means it roamed fine.
+                if (lastHandshakeResponseAt > changedAt) {
+                    releaseRecoveryWakeLock()
+                    return@launch
+                }
+                if (rxAtChange >= 0 && TrafficStats.getUidRxBytes(uid) > rxAtChange) {
+                    VpnEventLog.log("tunnel kept receiving after the network change")
+                    releaseRecoveryWakeLock()
+                    return@launch
+                }
+                onTunnelUnresponsive(FAILURE_NETWORK_CHANGED)
+            }
+        }
+    }
+
+    /**
+     * Coroutine timers do not wake a sleeping phone: in field logs a 1 s recovery delay after a
+     * network change ran 51 s late, and the 25 s stall check took 90 s. Keep the CPU awake while
+     * the tunnel is being checked or rebuilt; the lock is dropped once it is verified and can
+     * never outlive [RECOVERY_WAKE_LOCK_MS].
+     */
+    private fun holdRecoveryWakeLock() {
+        val lock = recoveryWakeLock ?: runCatching {
+            (getSystemService(POWER_SERVICE) as PowerManager)
+                .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "ProtonNext:tunnel-recovery")
+                .apply { setReferenceCounted(false) }
+        }.getOrNull()?.also { recoveryWakeLock = it } ?: return
+        runCatching { lock.acquire(RECOVERY_WAKE_LOCK_MS) }
+    }
+
+    private fun releaseRecoveryWakeLock() {
+        recoveryWakeLock?.let { lock -> runCatching { if (lock.isHeld) lock.release() } }
     }
 
     private fun startHandshakeVerificationWatchdog(generation: Long) {
@@ -1139,6 +1221,8 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
 
     override fun onDestroy() {
         runCatching { unregisterReceiver(settingsReceiver) }
+        networkChangeJob?.cancel()
+        releaseRecoveryWakeLock()
         lifecycleGeneration.incrementAndGet()
         reconnectJob?.cancel()
         appConfigWaitJob?.cancel()

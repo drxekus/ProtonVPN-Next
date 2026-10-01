@@ -104,7 +104,10 @@ class CountriesViewModelTest {
         whenever(settingsManager.serverLoadDisplayMode).thenReturn(flowOf(ServerLoadDisplayMode.ALL))
         whenever(settingsManager.torModeEnabled).thenReturn(flowOf(false))
 
-        viewModel = CountriesViewModel(context, vpnRepository, sessionDao, amneziaVpnManager, connectedServerState, settingsManager)
+        viewModel = CountriesViewModel(
+            context, vpnRepository, sessionDao, amneziaVpnManager, connectedServerState, settingsManager,
+            kotlinx.coroutines.CoroutineScope(Dispatchers.Main + kotlinx.coroutines.SupervisorJob())
+        )
     }
 
     @Test

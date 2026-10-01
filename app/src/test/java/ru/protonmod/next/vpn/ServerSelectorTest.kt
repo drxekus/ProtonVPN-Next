@@ -20,9 +20,10 @@ class ServerSelectorTest {
         country: String = "DE",
         city: String = "Berlin",
         features: Int = 0,
+        score: Double = 0.0,
     ) = LogicalServer(
         id = id, name = id, tier = 0, features = features, entryCountry = country,
-        exitCountry = country, city = city, servers = servers, averageLoad = load
+        exitCountry = country, city = city, servers = servers, averageLoad = load, score = score
     )
 
     @Test
@@ -39,6 +40,26 @@ class ServerSelectorTest {
         val loaded = logical("loaded", load = 90)
 
         assertEquals("loaded", ServerSelector.fastest(listOf(unreported, loaded))?.id)
+    }
+
+    @Test
+    fun `a nearby server beats an idle one far away`() {
+        val farAndIdle = logical("mz", load = 5, country = "MZ", score = 9.4)
+        val nearAndBusier = logical("fi", load = 45, country = "FI", score = 1.2)
+
+        assertEquals("fi", ServerSelector.fastest(listOf(farAndIdle, nearAndBusier))?.id)
+    }
+
+    @Test
+    fun `servers without a score follow scored ones by load`() {
+        val unscoredIdle = logical("unscored", load = 3)
+        val scored = logical("scored", load = 60, score = 4.0)
+        val unscoredBusy = logical("busy", load = 80)
+
+        assertEquals(
+            listOf("scored", "unscored", "busy"),
+            ServerSelector.rank(listOf(unscoredBusy, unscoredIdle, scored)).map { it.id }
+        )
     }
 
     @Test

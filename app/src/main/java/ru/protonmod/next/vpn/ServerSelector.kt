@@ -70,10 +70,20 @@ object ServerSelector {
     /**
      * Orders usable servers from best to worst. A load of 0 means Proton did not report one,
      * which almost always means the server is not serving, so those go last instead of first.
+     * Among the rest, Proton's score decides (lower is better): it weighs load against the
+     * distance from the user, so a half-empty server on another continent no longer wins over
+     * a nearby one. Servers without a score follow, by load.
      */
     fun rank(servers: Collection<LogicalServer>): List<LogicalServer> =
         servers.filter(::isUsable)
-            .sortedWith(compareBy<LogicalServer>({ it.averageLoad <= 0 }, { it.averageLoad }))
+            .sortedWith(
+                compareBy<LogicalServer>(
+                    { it.averageLoad <= 0 },
+                    { it.score <= 0.0 },
+                    { if (it.score > 0.0) it.score else 0.0 },
+                    { it.averageLoad }
+                )
+            )
 
     /**
      * The best server for a generic "fastest" connection. Secure Core and Tor servers are only

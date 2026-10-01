@@ -226,6 +226,13 @@ object DatabaseModule {
         }
     }
 
+    val MIGRATION_20_21 = object : Migration(20, 21) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Proton's per-location server score, used to pick the fastest server.
+            db.execSQL("ALTER TABLE servers ADD COLUMN score REAL NOT NULL DEFAULT 0")
+        }
+    }
+
     val MIGRATION_19_20 = object : Migration(19, 20) {
         override fun migrate(db: SupportSQLiteDatabase) {
             // Daily VPN traffic statistics for the redesigned dashboard.
@@ -293,6 +300,7 @@ object DatabaseModule {
         .addMigrations(MIGRATION_17_18)
         .addMigrations(MIGRATION_18_19)
         .addMigrations(MIGRATION_19_20)
+        .addMigrations(MIGRATION_20_21)
         .build()
     }
 

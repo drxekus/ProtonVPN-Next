@@ -17,5 +17,6 @@ data class LoadsResponse(
 data class ServerLoad(
     @SerialName("ID") val id: String, // Logical or physical server ID
     @SerialName("Load") val load: Int, // Load in percent (0-100)
-    @SerialName("Status") val status: Int? = null
+    @SerialName("Status") val status: Int? = null,
+    @SerialName("Score") val score: Double? = null
 )

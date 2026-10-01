@@ -29,7 +29,9 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import ru.protonmod.next.di.ApplicationScope
 import kotlinx.coroutines.withContext
 import ru.protonmod.next.vpn.ServerScope
 import ru.protonmod.next.vpn.ServerSelector
@@ -88,7 +90,8 @@ class CountriesViewModel @Inject constructor(
     private val sessionDao: SessionDao,
     private val amneziaVpnManager: AmneziaVpnManager,
     private val connectedServerState: ConnectedServerState,
-    private val settingsManager: SettingsManager
+    private val settingsManager: SettingsManager,
+    @ApplicationScope private val applicationScope: CoroutineScope
 ) : ViewModel() {
 
     companion object {
@@ -206,8 +209,11 @@ class CountriesViewModel @Inject constructor(
         }
     }
 
+    // Connecting runs in the application scope: the screen navigates home right after a tap,
+    // which cleared this ViewModel and cancelled the connection before it started (reading the
+    // server list for a country or city takes longer than the navigation).
     fun selectCountry(country: String) {
-        viewModelScope.launch {
+        applicationScope.launch {
             val servers = vpnRepository.getCachedServers()
             val serversInCountry = servers.filter { it.exitCountry == country }
             if (serversInCountry.isNotEmpty()) {
@@ -230,9 +236,9 @@ class CountriesViewModel @Inject constructor(
     }
 
     fun selectCity(city: String) {
-        viewModelScope.launch {
-            val nav = _navState.value
-            if (nav !is NavigationState.Cities) return@launch
+        val nav = _navState.value
+        if (nav !is NavigationState.Cities) return
+        applicationScope.launch {
 
             val servers = vpnRepository.getCachedServers()
             val serversInCity = servers.filter { it.exitCountry == nav.countryCode && it.city == city }
@@ -262,7 +268,7 @@ class CountriesViewModel @Inject constructor(
     }
 
     fun selectServer(server: LogicalServer) {
-        viewModelScope.launch {
+        applicationScope.launch {
             connectToServer(server)
         }
     }

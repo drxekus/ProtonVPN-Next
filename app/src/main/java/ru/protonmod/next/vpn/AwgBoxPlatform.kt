@@ -87,12 +87,16 @@ internal fun splitTunnelingAppPolicy(
 class AwgBoxPlatform(
     private val service: VpnService,
     private val vpnNetworkMonitor: VpnNetworkMonitor,
+    /** Called after the default network really changed while the engine was running. */
+    private val onNetworkPathChanged: () -> Unit,
     private val onTunOpened: (ParcelFileDescriptor) -> Unit
 ) : PlatformInterface {
     private val connectivity = service.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     @Volatile private var defaultNetwork: Network? = null
     @Volatile private var lastPublishedInterface: PublishedInterface? = null
+    /** False until the first network of this engine run is published (that one is no change). */
+    @Volatile private var initialNetworkPublished = false
     /** Network callbacks call into the engine and may block briefly; keep them off the main thread. */
     private val monitorThread = HandlerThread("awgbox-network-monitor").apply { start() }
     private val monitorHandler = Handler(monitorThread.looper)
@@ -216,6 +220,7 @@ class AwgBoxPlatform(
      */
     override fun startDefaultInterfaceMonitor(listener: InterfaceUpdateListener) {
         closeDefaultInterfaceMonitor(listener)
+        initialNetworkPublished = false
         // NetworkRequest carries NET_CAPABILITY_NOT_VPN by default, so our own TUN never matches.
         val request = NetworkRequest.Builder()
             .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
@@ -338,6 +343,10 @@ class AwgBoxPlatform(
             VpnEventLog.log("net: default interface $name (index $index, metered=$expensive)")
         }
         listener.updateDefaultInterface(name, index, expensive, false)
+        val pathChanged = previous == null || previous.name != name || previous.index != index ||
+            previous.networkHandle != published.networkHandle || previous.ipv4 != ipv4
+        if (initialNetworkPublished && pathChanged) onNetworkPathChanged()
+        initialNetworkPublished = true
     }
 
     private data class PublishedInterface(

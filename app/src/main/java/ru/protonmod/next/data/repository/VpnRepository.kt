@@ -68,7 +68,8 @@ open class VpnRepository @Inject constructor(
     private val cityRepository: CityRepository,
     private val dispatcherProvider: DispatcherProvider,
     private val cryptoWrapper: CryptoWrapper,
-    @ApplicationScope private val managerScope: CoroutineScope
+    @ApplicationScope private val managerScope: CoroutineScope,
+    private val settingsManager: SettingsManager
 ) {
     /**
      * Helper to wrap Room transactions in a mockable way for unit tests.
@@ -99,6 +100,13 @@ open class VpnRepository @Inject constructor(
         private const val CITY_CACHE_DURATION_MILLIS = 24 * 60 * 60 * 1000L // 24 hours
         private const val AUTO_UPDATE_INTERVAL_MINUTES = 120L
         private const val AUTO_UPDATE_STARTUP_DELAY_MILLIS = 5_000L // 5 seconds
+
+        /** `a.b.c.d` becomes `a.b.c.0`, the format of Proton's `x-pm-netzone`; null otherwise. */
+        internal fun netzoneOf(ip: String?): String? {
+            val octets = ip?.trim()?.split('.') ?: return null
+            if (octets.size != 4 || octets.any { it.toIntOrNull() !in 0..255 }) return null
+            return "${octets[0]}.${octets[1]}.${octets[2]}.0"
+        }
     }
 
     fun startAutoUpdate() {
@@ -257,7 +265,8 @@ open class VpnRepository @Inject constructor(
 
             if (!shouldCheckApi && !isStale) {
                 val dbServers = serverDao.getAllServers().map { ServerMapper.toDomain(it) }
-                if (dbServers.isNotEmpty()) {
+                // A cache written before scores were stored would keep "Fastest" on load alone.
+                if (dbServers.isNotEmpty() && dbServers.any { it.score > 0.0 }) {
                     val result = dbServers.filter { it.tier <= userTier }
                     cachedServers = result
                     ProtonLogger.i(TAG, "Returning ${result.size} servers from local cache (API skip)")
@@ -272,11 +281,16 @@ open class VpnRepository @Inject constructor(
             refreshCityTranslations(accessToken, sessionId)
 
             ProtonLogger.i(TAG, "Fetching servers from Proton API... (If-Modified-Since: $ifModifiedSince, StatusID: ${cacheInfo?.statusId})")
+            // Proton scores servers by the address a request comes from. Through a tunnel or an
+            // API mirror that is the wrong place (a connection via Mozambique made African servers
+            // "fastest"), so tell it where the user really is, as the official client does.
+            val netzone = netzoneOf(settingsManager.getCachedRealIpSync())
             val response = vpnApi.getLogicalServers(
                 authorization = bearer,
                 sessionId = sessionId,
                 lastModified = ifModifiedSince,
-                protocols = "wireguard"
+                protocols = "wireguard",
+                netzone = netzone
             )
 
             val (serversList, newLastModified, newStatusId) = when (response.code()) {
@@ -334,6 +348,7 @@ open class VpnRepository @Inject constructor(
                             if (old != null) {
                                 // Preserve logical load if the new one is 0 (API placeholder)
                                 val preservedLoad = if (entity.averageLoad == 0) old.averageLoad else entity.averageLoad
+                                val preservedScore = if (entity.score <= 0.0) old.score else entity.score
                                 
                                 // Preserve physical loads by merging the JSON
                                 val mergedPhysicalJson = try {
@@ -348,7 +363,7 @@ open class VpnRepository @Inject constructor(
                                     entity.physicalServersJson
                                 }
                                 
-                                entity.copy(averageLoad = preservedLoad, physicalServersJson = mergedPhysicalJson)
+                                entity.copy(averageLoad = preservedLoad, physicalServersJson = mergedPhysicalJson, score = preservedScore)
                             } else entity
                         }
                         serverDao.upsertServers(entities)
@@ -376,7 +391,7 @@ open class VpnRepository @Inject constructor(
             // Step 3: Fetch server loads and apply them directly to the DB rows.
             ProtonLogger.d(TAG, "Fetching server loads for $serverCount servers...")
             val loadsResponse = try {
-                vpnApi.getLoads(bearer, sessionId)
+                vpnApi.getLoads(bearer, sessionId, netzone)
             } catch (e: Exception) {
                 ProtonLogger.w(TAG, "Failed to initiate loads request: ${e.message}")
                 null
@@ -392,8 +407,9 @@ open class VpnRepository @Inject constructor(
                 }
 
                 val loadsMap = loadsData?.loads?.associate { it.id to it.load } ?: emptyMap()
+                val scoresMap = loadsData?.loads?.mapNotNull { load -> load.score?.takeIf { it > 0.0 }?.let { load.id to it } }?.toMap().orEmpty()
                 if (loadsMap.isNotEmpty()) {
-                    ProtonLogger.d(TAG, "Applying fresh loads for ${loadsMap.size} IDs to database...")
+                    ProtonLogger.d(TAG, "Applying fresh loads for ${loadsMap.size} IDs to database (scores for ${scoresMap.size}, netzone sent: ${netzone != null})...")
                     
                     val allEntities = serverDao.getAllServers()
                     val updatedEntities = allEntities.mapNotNull { entity ->
@@ -403,6 +419,8 @@ open class VpnRepository @Inject constructor(
                             newAverageLoad = loadsMap[entity.id]!!
                             modified = true
                         }
+                        val newScore = scoresMap[entity.id] ?: entity.score
+                        if (newScore != entity.score) modified = true
                         
                         val (updatedPhysicalJson, physicalModified) = try {
                             val physicals = json.decodeFromString<List<PhysicalServer>>(entity.physicalServersJson)
@@ -419,7 +437,7 @@ open class VpnRepository @Inject constructor(
                         }
                         
                         if (modified || physicalModified) {
-                            entity.copy(averageLoad = newAverageLoad, physicalServersJson = updatedPhysicalJson)
+                            entity.copy(averageLoad = newAverageLoad, physicalServersJson = updatedPhysicalJson, score = newScore)
                         } else null
                     }
 

@@ -37,6 +37,11 @@ data class LogicalServer(
     @SerialName("ExitCountry") val exitCountry: String,
     @SerialName("City") val city: String,
     @SerialName("Servers") val servers: List<PhysicalServer> = emptyList(),
+    /**
+     * Proton's ranking for the requesting location: lower is better. It combines load with the
+     * distance from the user, which is what the official client's "Fastest" uses. 0 = unknown.
+     */
+    @SerialName("Score") val score: Double = 0.0,
     // UI convenience fields
     var averageLoad: Int = 0,
     var localizedCity: String? = null

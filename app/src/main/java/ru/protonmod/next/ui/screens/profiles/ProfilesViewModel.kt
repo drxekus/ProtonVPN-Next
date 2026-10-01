@@ -32,6 +32,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CoroutineScope
+import ru.protonmod.next.di.ApplicationScope
 import kotlinx.coroutines.withTimeout
 import ru.protonmod.next.vpn.ServerScope
 import ru.protonmod.next.vpn.ServerSelector
@@ -59,7 +61,8 @@ class ProfilesViewModel @Inject constructor(
     private val amneziaVpnManager: AmneziaVpnManager,
     private val connectedServerState: ConnectedServerState,
     private val profileDao: ProfileDao,
-    private val settingsManager: SettingsManager
+    private val settingsManager: SettingsManager,
+    @ApplicationScope private val applicationScope: CoroutineScope
 ) : ViewModel() {
 
     companion object {
@@ -172,8 +175,10 @@ class ProfilesViewModel @Inject constructor(
         }
     }
 
+    // The screen navigates home right after the tap, which clears this ViewModel; connecting in
+    // the application scope keeps that from cancelling the connection halfway.
     fun connectWithProfile(profile: VpnProfileUiModel) {
-        viewModelScope.launch {
+        applicationScope.launch {
             val session = sessionDao.getSession()
             if (session == null) {
                 ProtonLogger.e(TAG, "Cannot connect: No session found")

@@ -104,7 +104,8 @@ class ProfilesViewModelTest {
 
         viewModel = ProfilesViewModel(
             context, vpnRepository, sessionDao, amneziaVpnManager,
-            connectedServerState, profileDao, settingsManager
+            connectedServerState, profileDao, settingsManager,
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main + kotlinx.coroutines.SupervisorJob())
         )
     }
 
