@@ -110,6 +110,15 @@
             android:name=".vpn.VpnControlReceiver"
             android:exported="false" />
 
+        <!-- Delivers the Shizuku binder; used only when the user writes the lockdown exception list -->
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:multiprocess="false"
+            android:enabled="true"
+            android:exported="true"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
+
         <!-- Restores the tunnel after an app update killed the VPN process -->
         <receiver
             android:name=".vpn.AppUpdateReceiver"

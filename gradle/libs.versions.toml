@@ -1,4 +1,5 @@
 [versions]
+shizuku = "13.1.5"
 agp = "9.5.0-alpha07"
 kotlin = "2.4.20"
 ksp = "2.3.10"
@@ -43,6 +44,8 @@ graphicsShapes = "1.1.0"
 graphicsPath = "1.1.0"
 
 [libraries]
+shizuku-api = { group = "dev.rikka.shizuku", name = "api", version.ref = "shizuku" }
+shizuku-provider = { group = "dev.rikka.shizuku", name = "provider", version.ref = "shizuku" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycle" }
 androidx-lifecycle-runtime-compose = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "lifecycle" }

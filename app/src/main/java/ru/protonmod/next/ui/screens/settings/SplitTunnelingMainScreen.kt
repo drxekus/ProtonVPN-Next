@@ -268,6 +268,21 @@ fun SplitTunnelingMainScreen(
                     }
                 }
 
+                // Excluded apps lose internet under Always-on VPN's lockdown unless Android's
+                // exception list names them; Shizuku can write it from here.
+                AnimatedVisibility(
+                    visible = uiState.splitTunnelingEnabled &&
+                        uiState.splitTunnelingMode == "exclude" &&
+                        uiState.excludedApps.isNotEmpty(),
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically()
+                ) {
+                    LockdownAllowlistCard(
+                        excludedApps = uiState.excludedApps,
+                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp)
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(24.dp))
             }
         }

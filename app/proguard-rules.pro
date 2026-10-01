@@ -86,3 +86,6 @@
 # --- WindowManager Extensions (OEM provided) ---
 -dontwarn androidx.window.extensions.**
 -dontwarn androidx.window.sidecar.**
+
+# Shizuku.newProcess is private in the API and called by reflection (LockdownAllowlist)
+-keep class rikka.shizuku.Shizuku { *; }

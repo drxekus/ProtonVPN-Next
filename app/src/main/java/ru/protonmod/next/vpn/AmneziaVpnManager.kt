@@ -92,7 +92,8 @@ class AmneziaVpnManager @Inject constructor(
     private val vpnNetworkMonitor: VpnNetworkMonitor,
     private val trafficStatsRecorder: TrafficStatsRecorder,
     private val dispatcherProvider: DispatcherProvider,
-    @ApplicationScope private val applicationScope: CoroutineScope
+    @ApplicationScope private val applicationScope: CoroutineScope,
+    private val obfuscationAdvisor: ObfuscationAdvisor
 ) {
     companion object {
         private const val TAG = "AmneziaVpnManager"
@@ -114,6 +115,7 @@ class AmneziaVpnManager @Inject constructor(
         private const val MAX_FAILOVER_ATTEMPTS = 8
         /** Endpoints of one server to try before a scoped connection moves to another server. */
         private const val ATTEMPTS_PER_SCOPED_SERVER = 2
+        private const val STANDARD_OBFUSCATION_PROFILE_ID = "standard_1"
         /** An exact server gets this many endpoints before the rest of its country is tried. */
         private const val ATTEMPTS_PER_EXACT_SERVER = 4
         /** Endpoints that failed longer ago than this may work again (another network, a lifted block). */
@@ -208,6 +210,8 @@ class AmneziaVpnManager @Inject constructor(
         val failoverScope: ServerScope? = null,
         /** The UDP port this attempt used; 0 until the attempt picked one. */
         val port: Int = 0,
+        /** Obfuscation the ladder chose for this attempt; null when the ladder does not apply. */
+        val obfuscationVariant: ObfuscationLadder.Variant? = null,
     )
 
     /**
@@ -221,6 +225,7 @@ class AmneziaVpnManager @Inject constructor(
         var attempts = 0
         var attemptsOnServer = 0
         val startedAt = SystemClock.elapsedRealtime()
+        val triedVariants = mutableSetOf<ObfuscationLadder.Variant>()
     }
 
     @Volatile
@@ -560,6 +565,9 @@ class AmneziaVpnManager @Inject constructor(
         }
         failover = FailoverState()
         val request = lastConnectionRequest ?: return
+        request.obfuscationVariant?.let { variant ->
+            withContext(dispatcherProvider.io()) { obfuscationAdvisor.recordSuccess(variant) }
+        }
         if (request.port != 0 && isAutoPort(request.overridePort)) {
             settingsManager.setLastWorkingAutoPort(request.port)
         }
@@ -589,14 +597,27 @@ class AmneziaVpnManager @Inject constructor(
         if (!settingsManager.connectionAutoReconnect.first()) return
         val request = lastConnectionRequest ?: return
         val session = sessionDao.getSession() ?: return
-        val next = nextFailoverCandidate(request) ?: run {
+        // A handshake that never came back may be the network dropping WireGuard, not the server:
+        // the next attempt also climbs the obfuscation ladder. A failed probe after a handshake
+        // is not about obfuscation and keeps it.
+        val failedVariant = request.obfuscationVariant
+        val nextVariant = if (failedVariant != null && reason == ProtonVpnService.FAILURE_HANDSHAKE_TIMEOUT) {
+            withContext(dispatcherProvider.io()) {
+                obfuscationAdvisor.nextAfterFailure(failedVariant, ladderFavorite(request), failover.triedVariants)
+            }
+        } else failedVariant
+        val candidate = nextFailoverCandidate(request)
+            // Every endpoint failed, but an obfuscation variant is still untried: retry with it.
+            ?: request.takeIf { nextVariant != null && nextVariant !in failover.triedVariants }
+        val next = candidate?.copy(obfuscationVariant = nextVariant) ?: run {
             ProtonLogger.w(TAG, "No other endpoint left to try; the VPN service keeps retrying")
             _connectionWarning.value = ConnectionWarning.ServerNotResponding
             return
         }
         ProtonLogger.w(
             TAG,
-            "Endpoint ${request.server.domain}:${request.port} failed ($reason); trying ${next.server.domain}:${next.port}"
+            "Endpoint ${request.server.domain}:${request.port} failed ($reason); trying ${next.server.domain}:${next.port}" +
+                (next.obfuscationVariant?.let { " with obfuscation ${it.id}" } ?: "")
         )
         if (next.logicalServerId != request.logicalServerId) {
             vpnRepositoryProvider.get().getCachedServers().find { it.id == next.logicalServerId }
@@ -649,6 +670,17 @@ class AmneziaVpnManager @Inject constructor(
     }
 
     private fun endpointKey(physicalId: String, port: Int) = "$physicalId:$port"
+
+    private suspend fun ladderApplies(request: LastConnectionRequest): Boolean {
+        if (request.obfuscationParams != null || !settingsManager.autoObfuscationEnabled.first()) return false
+        val obfuscation = request.overrideObfuscation ?: settingsManager.obfuscationEnabled.first()
+        return !obfuscation || settingsManager.selectedProfileId.first() == STANDARD_OBFUSCATION_PROFILE_ID
+    }
+
+    /** The variant the user's own settings would use: it gets the head start on a new network. */
+    private suspend fun ladderFavorite(request: LastConnectionRequest): ObfuscationLadder.Variant =
+        if (request.overrideObfuscation ?: settingsManager.obfuscationEnabled.first()) ObfuscationLadder.Variant.STANDARD
+        else ObfuscationLadder.Variant.NONE
 
     private suspend fun isAutoPort(overridePort: Int?): Boolean =
         (overridePort == null || overridePort == 0) && settingsManager.vpnPort.first() == 0
@@ -1163,7 +1195,7 @@ class AmneziaVpnManager @Inject constructor(
                 "Connection parameters: Port=$selectedPort, AWG obfuscation=$isObfuscationEnabled, proxy chain=$proxyChainEnabled, Tor=$torModeEnabled"
             )
 
-            val params = if (isObfuscationEnabled) {
+            val configuredParams = if (isObfuscationEnabled) {
                 obfuscationParams ?: ObfuscationParams(
                     jc = settingsManager.awgJc.first(), jmin = settingsManager.awgJmin.first(), jmax = settingsManager.awgJmax.first(),
                     s1 = settingsManager.awgS1.first(), s2 = settingsManager.awgS2.first(),
@@ -1182,6 +1214,21 @@ class AmneziaVpnManager @Inject constructor(
             } else {
                 ObfuscationParams(0, 0, 0, 0, 0, 0, 0, "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "")
             }
+
+            // The obfuscation ladder replaces the junk and I1 settings when the user lets it: only
+            // with the standard profile or no obfuscation, never over a custom profile, a profile's
+            // own parameters or a proxy chain.
+            val ladderVariant = if (!proxyChainEnabled && ladderApplies(request)) {
+                request.obfuscationVariant ?: withContext(dispatcherProvider.io()) {
+                    obfuscationAdvisor.pickForNewConnection(ladderFavorite(request))
+                }
+            } else null
+            val params = if (ladderVariant != null) {
+                lastConnectionRequest = request.copy(port = attemptPort, obfuscationVariant = ladderVariant)
+                failover.triedVariants += ladderVariant
+                ProtonLogger.i(TAG, "Obfuscation ladder: ${ladderVariant.id}")
+                ObfuscationLadder.paramsFor(ladderVariant, configuredParams, obfuscationAdvisor.installSeed)
+            } else configuredParams
 
             // Use assigned IP/DNS from session if available, fallback to defaults.
             // Paid users (Tier > 0) are often assigned unique internal IPs by the Proton API.

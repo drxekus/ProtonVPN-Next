@@ -97,6 +97,9 @@ class AmneziaVpnManagerTest {
     @Mock
     private lateinit var trafficStatsRecorder: TrafficStatsRecorder
 
+    @Mock
+    private lateinit var obfuscationAdvisor: ObfuscationAdvisor
+
     private val testDispatcher = UnconfinedTestDispatcher()
     private val testScope = TestScope(testDispatcher)
     
@@ -140,6 +143,7 @@ class AmneziaVpnManagerTest {
             whenever(settingsManager.vpnPort).thenReturn(flowOf(1194))
             whenever(settingsManager.lastWorkingAutoPort).thenReturn(flowOf(0))
             whenever(settingsManager.obfuscationEnabled).thenReturn(flowOf(false))
+            whenever(settingsManager.autoObfuscationEnabled).thenReturn(flowOf(false))
             whenever(settingsManager.proxyChainEnabled).thenReturn(flowOf(false))
             whenever(settingsManager.proxyChainConfig).thenReturn(flowOf(""))
             whenever(settingsManager.customDns).thenReturn(flowOf(""))
@@ -208,7 +212,8 @@ class AmneziaVpnManagerTest {
                 vpnNetworkMonitor,
                 trafficStatsRecorder,
                 testDispatcherProvider,
-                testScope
+                testScope,
+                obfuscationAdvisor
             )
         }
     }

@@ -438,6 +438,9 @@ plugins.withId("io.sentry.android.gradle") {
 }
 
 dependencies {
+    // Shizuku: lets the user grant shell rights for the lockdown exception list (optional)
+    implementation(libs.shizuku.api)
+    implementation(libs.shizuku.provider)
     // Apply Compose BOM to all implementation configurations (including tests and flavors)
     // This avoids duplication and ensures all Compose libraries resolve their versions correctly.
     val composeBom = platform(libs.compose.bom)

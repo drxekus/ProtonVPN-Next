@@ -203,6 +203,17 @@ fun ObfuscationSettingsScreen(
                     }
                 }
 
+                item(contentType = "AutoObfuscation") {
+                    AnimatedVisibility(
+                        visible = protectionMode != ProtectionMode.PROXY_CHAIN,
+                        enter = fadeIn() + expandVertically(),
+                        exit = fadeOut() + shrinkVertically(),
+                        modifier = contentModifier.padding(horizontal = 16.dp)
+                    ) {
+                        AutoObfuscationCard()
+                    }
+                }
+
                 item(contentType = "DisabledHint") {
                     AnimatedVisibility(
                         visible = protectionMode == ProtectionMode.OFF,

@@ -105,6 +105,7 @@ class SettingsManager @Inject constructor(
         private val CONNECTION_PREFLIGHT_REQUIRED = booleanPreferencesKey("connection_preflight_required")
         private val CONNECTION_FAILURE_DETECTION = booleanPreferencesKey("connection_failure_detection")
         private val CONNECTION_AUTO_RECONNECT = booleanPreferencesKey("connection_auto_reconnect")
+        private val AUTO_OBFUSCATION = booleanPreferencesKey("auto_obfuscation_enabled")
 
         private val OTA_UPDATE_FREQUENCY = stringPreferencesKey("ota_update_frequency") // "hourly", "daily", "weekly", "monthly", "disabled"
         private val OTA_LAST_CHECK_TIME = androidx.datastore.preferences.core.longPreferencesKey("ota_last_check_time_v2")
@@ -297,6 +298,9 @@ class SettingsManager @Inject constructor(
     val connectionFailureDetection: Flow<Boolean> = dataStore.data.map {
         it[CONNECTION_FAILURE_DETECTION] ?: true
     }
+    /** Let the app switch obfuscation when a network drops handshakes (see ObfuscationLadder). */
+    val autoObfuscationEnabled: Flow<Boolean> = dataStore.data.map { it[AUTO_OBFUSCATION] ?: true }
+
     val connectionAutoReconnect: Flow<Boolean> = dataStore.data.map {
         it[CONNECTION_AUTO_RECONNECT] ?: true
     }
@@ -631,6 +635,10 @@ class SettingsManager @Inject constructor(
 
     suspend fun setConnectionFailureDetection(enabled: Boolean) {
         dataStore.edit { it[CONNECTION_FAILURE_DETECTION] = enabled }
+    }
+
+    suspend fun setAutoObfuscationEnabled(enabled: Boolean) {
+        dataStore.edit { it[AUTO_OBFUSCATION] = enabled }
     }
 
     suspend fun setConnectionAutoReconnect(enabled: Boolean) {
