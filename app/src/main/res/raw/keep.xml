@@ -1,3 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- The url_* strings are compared by name in libnext's integrity check. The app itself only shows
+     url_github, so release resource shrinking removed the others and every release build reported
+     "mismatched resources". -->
 <resources xmlns:tools="http://schemas.android.com/tools"
-    tools:keep="@drawable/flag_*,@string/tamper_*,@font/roboto_*" />
+    tools:keep="@drawable/flag_*,@string/tamper_*,@font/roboto_*,@string/url_github,@string/url_gitlab,@string/url_telegram,@string/url_crowdin" />
