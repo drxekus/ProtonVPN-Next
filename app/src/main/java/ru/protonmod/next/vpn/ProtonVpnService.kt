@@ -194,6 +194,8 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
         private const val NETWORK_CHANGE_SETTLE_MS = 1_500L
         /** Upper bound for keeping the phone awake while one recovery runs. */
         private const val RECOVERY_WAKE_LOCK_MS = 60_000L
+        /** Retries scheduled further out than this run without a wake lock. */
+        private const val MAX_AWAKE_RECOVERY_DELAY_MS = 5_000L
         private const val NOTIFICATION_REFRESH_MS = 5_000L
         private const val APP_REQUEST_THROTTLE_MS = 30_000L
         private val APP_CONFIG_WAIT = 60.seconds
@@ -695,11 +697,15 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
      */
     private fun scheduleRecovery(reason: String) {
         val retry = lastConnectIntent ?: return
-        holdRecoveryWakeLock()
         connecting = true
         verified = false
         sendTunnelFailed(reason)
         val delayMs = RECOVERY_DELAYS_MS[recoveryAttempt.coerceAtMost(RECOVERY_DELAYS_MS.lastIndex)]
+        // Keep the phone awake only for the first, quick retries. Under a lasting block every
+        // retry held the lock for a minute and the next one took it again, so the phone hardly
+        // slept all night; a late long backoff costs nothing.
+        val keepAwake = delayMs <= MAX_AWAKE_RECOVERY_DELAY_MS
+        if (keepAwake) holdRecoveryWakeLock() else releaseRecoveryWakeLock()
         recoveryAttempt++
         val attempt = recoveryAttempt
         ProtonLogger.w(TAG, "Recovering the tunnel ($reason), attempt $attempt in ${delayMs}ms")
@@ -715,7 +721,7 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
                 // Waiting can take hours; the network callback wakes the phone when one appears.
                 releaseRecoveryWakeLock()
                 vpnNetworkMonitor.awaitUsableUnderlyingNetwork()
-                holdRecoveryWakeLock()
+                if (keepAwake) holdRecoveryWakeLock()
             }
             // This process can only replay the same configuration. After a few failures, wake
             // the app so it can refresh the certificate or move to another server.
