@@ -938,4 +938,9 @@
     <string name="lockdown_allowlist_grant">Allow in Shizuku</string>
     <string name="lockdown_allowlist_retry">Check again</string>
     <string name="lockdown_allowlist_info">Under “Block connections without VPN” Android drops all traffic that bypasses the VPN, so excluded apps cannot reach the internet. Android has a hidden exception list for this case: apps in it go online directly while everything else stays blocked. There is no such list for IP addresses and domains. Only the shell can write this system setting, so the app uses Shizuku. Shizuku asks you once; after that the app runs exactly two commands, reading and writing this one setting, and only when you tap the button. Android reads the list when the phone starts, so restart after writing. Turning Always-on VPN or the blocking off and on again in Android settings erases the list; write it again then. Without Shizuku: adb shell settings put secure always_on_vpn_lockdown_whitelist app1,app2</string>
+    <string name="countries_search_hint">Country, city or server</string>
+    <string name="search_no_results">Nothing found</string>
+    <string name="desc_search">Search</string>
+    <string name="desc_clear_search">Clear</string>
+    <string name="desc_open_servers">Show servers</string>
 </resources>

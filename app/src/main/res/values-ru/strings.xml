@@ -818,4 +818,9 @@
     <string name="lockdown_allowlist_grant">Разрешить в Shizuku</string>
     <string name="lockdown_allowlist_retry">Проверить снова</string>
     <string name="lockdown_allowlist_info">При «Блокировать соединения без VPN» Android отбрасывает весь трафик мимо VPN, поэтому исключённые приложения не могут выйти в интернет. Для этого случая в Android есть скрытый список исключений: приложения из него ходят в сеть напрямую, а всё остальное остаётся заблокированным. Для IP-адресов и доменов такого списка нет. Записать эту системную настройку может только shell, поэтому приложение использует Shizuku. Shizuku один раз спросит разрешение; после этого приложение выполняет ровно две команды — чтение и запись этой одной настройки — и только когда вы нажимаете кнопку. Android читает список при запуске телефона, поэтому после записи перезагрузите его. Если выключить и снова включить «Постоянный VPN» или блокировку в настройках Android, список сотрётся — запишите его снова. Без Shizuku: adb shell settings put secure always_on_vpn_lockdown_whitelist прил1,прил2</string>
+    <string name="countries_search_hint">Страна, город или сервер</string>
+    <string name="search_no_results">Ничего не найдено</string>
+    <string name="desc_search">Поиск</string>
+    <string name="desc_clear_search">Очистить</string>
+    <string name="desc_open_servers">Показать серверы</string>
 </resources>

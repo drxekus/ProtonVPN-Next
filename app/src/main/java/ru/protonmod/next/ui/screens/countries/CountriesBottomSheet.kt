@@ -92,8 +92,7 @@ fun CountriesBottomSheet(
                         
                         LazyColumn(
                             modifier = Modifier.fillMaxWidth(),
-                            contentPadding = PaddingValues(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                            contentPadding = PaddingValues(top = 8.dp, bottom = 8.dp)
                         ) {
                             items(targetContent.cities, key = { it.name }) { city ->
                                 CityCard(
@@ -118,8 +117,7 @@ fun CountriesBottomSheet(
 
                         LazyColumn(
                             modifier = Modifier.fillMaxWidth(),
-                            contentPadding = PaddingValues(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                            contentPadding = PaddingValues(top = 8.dp, bottom = 8.dp)
                         ) {
                             items(targetContent.servers, key = { it.id }) { server ->
                                 ServerItemCard(

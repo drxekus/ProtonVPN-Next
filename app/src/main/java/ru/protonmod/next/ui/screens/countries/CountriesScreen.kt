@@ -25,7 +25,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -40,9 +39,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
@@ -61,12 +59,8 @@ import ru.protonmod.next.data.network.LogicalServer
 import ru.protonmod.next.ui.components.ExpressiveCircularProgressIndicator
 import ru.protonmod.next.ui.components.FlagIcon
 import ru.protonmod.next.ui.components.LoadIndicator
-import ru.protonmod.next.ui.components.LoadProgressBar
-import ru.protonmod.next.ui.components.MainHeader
-import ru.protonmod.next.ui.components.NavigationHeader
 import ru.protonmod.next.ui.icons.ProtonIcons
 import ru.protonmod.next.ui.theme.ProtonNextTheme
-import ru.protonmod.next.ui.theme.liquidGlass
 import ru.protonmod.next.ui.utils.CountryUtils
 import ru.protonmod.next.ui.utils.isTablet
 import ru.protonmod.next.utils.ProtonLogger
@@ -82,6 +76,8 @@ fun CountriesScreen(
     val colors = ProtonNextTheme.colors
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val connectedServer by viewModel.connectedServer.collectAsStateWithLifecycle()
+    val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
+    val searchResults by viewModel.searchResults.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val isTablet = isTablet()
 
@@ -116,122 +112,178 @@ fun CountriesScreen(
         }
     }
 
+    val loadDisplayMode = (uiState as? CountriesUiState.Success)?.loadDisplayMode ?: ServerLoadDisplayMode.ALL
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         containerColor = colors.backgroundNorm,
         bottomBar = {}
     ) { paddingValues ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .statusBarsPadding()
         ) {
-            // Background gradient
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                colors.brandNorm.copy(alpha = 0.25f),
-                                colors.backgroundNorm.copy(alpha = 0.1f),
-                                colors.backgroundNorm
-                            )
-                        )
-                    )
+            CountriesSearchField(
+                query = searchQuery,
+                onQueryChange = viewModel::setSearchQuery,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp)
             )
 
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .statusBarsPadding()
-            ) {
-                AnimatedContent(
-                    targetState = uiState,
-                    contentKey = { state ->
-                        // Use the class as key to avoid transition animations between different Success states
-                        // (e.g. when opening/closing the bottom sheet), but still animate between Loading/Success/Error.
-                        state::class
-                    },
-                    label = "countries_state_root",
-                    modifier = Modifier.weight(1f)
-                ) { state ->
-                    when (state) {
-                        is CountriesUiState.Loading -> {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                ExpressiveCircularProgressIndicator(color = colors.brandNorm)
+            Box(modifier = Modifier.weight(1f)) {
+                if (searchQuery.isBlank()) {
+                    AnimatedContent(
+                        targetState = uiState,
+                        contentKey = { state -> state::class },
+                        label = "countries_state_root",
+                        modifier = Modifier.fillMaxSize()
+                    ) { state ->
+                        when (state) {
+                            is CountriesUiState.Loading -> {
+                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                    ExpressiveCircularProgressIndicator(color = colors.brandNorm)
+                                }
                             }
-                        }
-                        is CountriesUiState.Error -> {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(state.message, color = colors.notificationError)
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Button(
-                                        onClick = { viewModel.loadServers() },
-                                        colors = ButtonDefaults.buttonColors(containerColor = colors.interactionNorm)
-                                    ) {
-                                        Text(stringResource(R.string.btn_retry), color = colors.textInverted)
+                            is CountriesUiState.Error -> {
+                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text(state.message, color = colors.notificationError)
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Button(
+                                            onClick = { viewModel.loadServers() },
+                                            colors = ButtonDefaults.buttonColors(containerColor = colors.interactionNorm)
+                                        ) {
+                                            Text(stringResource(R.string.btn_retry), color = colors.textInverted)
+                                        }
                                     }
                                 }
                             }
-                        }
-                        is CountriesUiState.Success -> {
-                            val countries = remember(state.countries) { state.countries.toImmutableList() }
-                            
-                            CountriesListContent(
-                                countries = countries,
-                                connectedServer = connectedServer,
-                                onCountryClick = { country ->
-                                    checkVpnAndConnect {
-                                        viewModel.selectCountry(country.code)
-                                        onNavigateToHome()
-                                    }
-                                },
-                                onCountryMore = { country ->
-                                    viewModel.expandCitiesForCountry(country.code)
-                                },
-                                isTablet = isTablet,
-                                loadDisplayMode = state.loadDisplayMode,
-                                connectionMode = state.connectionMode,
-                                onModeSelect = viewModel::setConnectionMode,
-                            )
+                            is CountriesUiState.Success -> {
+                                val countries = remember(state.countries) { state.countries.toImmutableList() }
+
+                                CountriesListContent(
+                                    countries = countries,
+                                    connectedServer = connectedServer,
+                                    onCountryClick = { country ->
+                                        checkVpnAndConnect {
+                                            viewModel.selectCountry(country.code)
+                                            onNavigateToHome()
+                                        }
+                                    },
+                                    onCountryMore = { country ->
+                                        viewModel.expandCitiesForCountry(country.code)
+                                    },
+                                    isTablet = isTablet,
+                                    loadDisplayMode = state.loadDisplayMode,
+                                    connectionMode = state.connectionMode,
+                                    onModeSelect = viewModel::setConnectionMode,
+                                )
+                            }
                         }
                     }
-                }
-
-                val successState by remember {
-                    derivedStateOf { uiState as? CountriesUiState.Success }
-                }
-
-                if (successState?.bottomSheetContent != null) {
-                    CountriesBottomSheet(
-                        onDismiss = { viewModel.backToCountries() },
-                        content = successState?.bottomSheetContent!!,
+                } else {
+                    SearchResultsList(
+                        results = searchResults,
                         connectedServer = connectedServer,
-                        onCityClick = { city ->
+                        loadDisplayMode = loadDisplayMode,
+                        onCountryClick = { result ->
                             checkVpnAndConnect {
-                                viewModel.selectCity(city.name)
+                                viewModel.selectCountry(result.code)
                                 onNavigateToHome()
                             }
                         },
-                        onCityMore = { city ->
-                            viewModel.expandServersForCity(city.name)
-                        },
-                        onServerClick = { server ->
+                        onCityClick = { result ->
                             checkVpnAndConnect {
-                                viewModel.selectServer(server)
+                                viewModel.selectCity(result.countryCode, result.cityName)
                                 onNavigateToHome()
                             }
                         },
-                        onBack = { viewModel.backToCities() },
-                        loadDisplayMode = successState?.loadDisplayMode ?: ServerLoadDisplayMode.ALL
+                        onServerClick = { result ->
+                            checkVpnAndConnect {
+                                viewModel.selectServer(result.server)
+                                onNavigateToHome()
+                            }
+                        },
                     )
                 }
             }
         }
+
+        val successState = uiState as? CountriesUiState.Success
+        if (searchQuery.isBlank() && successState?.bottomSheetContent != null) {
+            CountriesBottomSheet(
+                onDismiss = { viewModel.backToCountries() },
+                content = successState.bottomSheetContent,
+                connectedServer = connectedServer,
+                onCityClick = { city ->
+                    checkVpnAndConnect {
+                        viewModel.selectCity(city.name)
+                        onNavigateToHome()
+                    }
+                },
+                onCityMore = { city ->
+                    viewModel.expandServersForCity(city.name)
+                },
+                onServerClick = { server ->
+                    checkVpnAndConnect {
+                        viewModel.selectServer(server)
+                        onNavigateToHome()
+                    }
+                },
+                onBack = { viewModel.backToCities() },
+                loadDisplayMode = successState.loadDisplayMode
+            )
+        }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CountriesSearchField(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = ProtonNextTheme.colors
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        modifier = modifier.fillMaxWidth(),
+        singleLine = true,
+        shape = RoundedCornerShape(16.dp),
+        placeholder = { Text(stringResource(R.string.countries_search_hint)) },
+        leadingIcon = {
+            Icon(
+                imageVector = ProtonIcons.Magnifier,
+                contentDescription = stringResource(R.string.desc_search),
+                tint = colors.iconWeak
+            )
+        },
+        trailingIcon = {
+            if (query.isNotEmpty()) {
+                IconButton(onClick = { onQueryChange("") }) {
+                    Icon(
+                        imageVector = ProtonIcons.Cross,
+                        contentDescription = stringResource(R.string.desc_clear_search),
+                        tint = colors.iconWeak
+                    )
+                }
+            }
+        },
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = colors.brandNorm,
+            unfocusedBorderColor = colors.separatorNorm,
+            focusedTextColor = colors.textNorm,
+            unfocusedTextColor = colors.textNorm,
+            cursorColor = colors.brandNorm,
+            focusedContainerColor = colors.backgroundSecondary.copy(alpha = 0.4f),
+            unfocusedContainerColor = colors.backgroundSecondary.copy(alpha = 0.4f),
+            focusedPlaceholderColor = colors.textWeak,
+            unfocusedPlaceholderColor = colors.textWeak,
+        ),
+    )
 }
 
 @Composable
@@ -246,27 +298,22 @@ fun CountriesListContent(
     connectionMode: CountryConnectionMode = CountryConnectionMode.STANDARD,
     onModeSelect: (CountryConnectionMode) -> Unit = {},
 ) {
-    val colors = ProtonNextTheme.colors
-
     Box(modifier = modifier) {
         if (isTablet) {
             val windowInfo = LocalWindowInfo.current
             val density = LocalDensity.current
             val screenWidthDp = with(density) { windowInfo.containerSize.width.toDp() }.value
             val columns = (screenWidthDp / 300).toInt().coerceAtLeast(2)
-            
+
             LazyVerticalGrid(
                 columns = GridCells.Fixed(columns),
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, 140.dp),
+                contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 140.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 item(span = { GridItemSpan(maxLineSpan) }, contentType = "Header") {
-                    Column {
-                        MainHeader(title = stringResource(R.string.countries_title))
-                        ConnectionModeSelector(connectionMode, onModeSelect)
-                    }
+                    ConnectionModeSelector(connectionMode, onModeSelect)
                 }
 
                 items(countries, key = { it.code }, contentType = { "Country" }) { country ->
@@ -283,19 +330,10 @@ fun CountriesListContent(
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(
-                    start = 16.dp,
-                    top = 0.dp,
-                    end = 16.dp,
-                    bottom = 140.dp
-                ),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                contentPadding = PaddingValues(bottom = 140.dp),
             ) {
                 item(contentType = "Header") {
-                    Column {
-                        MainHeader(title = stringResource(R.string.countries_title))
-                        ConnectionModeSelector(connectionMode, onModeSelect)
-                    }
+                    ConnectionModeSelector(connectionMode, onModeSelect)
                 }
 
                 items(countries, key = { it.code }, contentType = { "Country" }) { country ->
@@ -351,6 +389,134 @@ private fun ConnectionModeSelector(
     }
 }
 
+/** A flag or placeholder with an optional Tor / connected badge, shared by the rows. */
+@Composable
+private fun CountryFlagBadge(
+    flagResId: Int,
+    isConnected: Boolean,
+    showTorBadge: Boolean,
+) {
+    val colors = ProtonNextTheme.colors
+    Box(contentAlignment = Alignment.BottomEnd) {
+        if (flagResId != 0) {
+            FlagIcon(countryFlag = flagResId, size = DpSize(36.dp, 24.dp))
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(36.dp, 24.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(colors.backgroundSecondary),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = ProtonIcons.Earth,
+                    contentDescription = stringResource(R.string.desc_country),
+                    tint = colors.iconNorm,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+        if (showTorBadge) {
+            Box(
+                modifier = Modifier
+                    .offset(x = 5.dp, y = 5.dp)
+                    .size(16.dp)
+                    .background(colors.backgroundNorm, CircleShape)
+                    .padding(2.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = ImageVector.vectorResource(R.drawable.ic_tor_project),
+                    contentDescription = stringResource(R.string.connection_mode_tor),
+                    tint = colors.brandNorm,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        } else if (isConnected) {
+            Box(
+                modifier = Modifier
+                    .offset(x = 4.dp, y = 4.dp)
+                    .size(10.dp)
+                    .background(colors.notificationSuccess, CircleShape)
+                    .padding(2.dp)
+                    .background(colors.backgroundNorm, CircleShape)
+                    .padding(1.dp)
+                    .background(colors.notificationSuccess, CircleShape)
+            )
+        }
+    }
+}
+
+/** Shared row shell: leading content, a title/subtitle, the load percent and an optional trailing slot. */
+@Composable
+private fun ServerRow(
+    title: String,
+    isConnected: Boolean,
+    onClick: () -> Unit,
+    leading: @Composable () -> Unit,
+    load: Int,
+    displayMode: ServerLoadDisplayMode,
+    modifier: Modifier = Modifier,
+    subtitle: String? = null,
+    trailing: (@Composable () -> Unit)? = null,
+) {
+    val colors = ProtonNextTheme.colors
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(if (isConnected) colors.brandNorm.copy(alpha = 0.08f) else Color.Transparent)
+            .clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            leading()
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = colors.textNorm,
+                    maxLines = 1,
+                )
+                if (subtitle != null) {
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textWeak,
+                        maxLines = 1,
+                    )
+                }
+            }
+            LoadIndicator(load = load, displayMode = displayMode)
+            if (trailing != null) {
+                Spacer(modifier = Modifier.width(8.dp))
+                trailing()
+            }
+        }
+        HorizontalDivider(
+            modifier = Modifier.padding(start = 16.dp),
+            color = colors.separatorNorm.copy(alpha = 0.4f),
+        )
+    }
+}
+
+@Composable
+private fun DrillIcon(onClick: () -> Unit) {
+    val colors = ProtonNextTheme.colors
+    IconButton(onClick = onClick, modifier = Modifier.size(32.dp)) {
+        Icon(
+            imageVector = ProtonIcons.ChevronRight,
+            contentDescription = stringResource(R.string.desc_open_servers),
+            tint = colors.iconWeak,
+        )
+    }
+}
+
 @Composable
 fun CountryCard(
     country: CountryDisplayItem,
@@ -361,113 +527,20 @@ fun CountryCard(
     displayMode: ServerLoadDisplayMode = ServerLoadDisplayMode.ALL,
     showTorBadge: Boolean = false,
 ) {
-    val colors = ProtonNextTheme.colors
     val context = LocalContext.current
     val flagResId = remember(country.code) { CountryUtils.getFlagResource(context, country.code) }
     val localizedName = remember(country.code) { CountryUtils.getCountryName(context, country.code) }
-    val interactionSource = remember { MutableInteractionSource() }
 
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .liquidGlass(
-                shape = RoundedCornerShape(20.dp),
-                alpha = if (isConnected) 0.2f else 0.4f,
-                shadowElevation = 0.dp
-            )
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick
-            )
-    ) {
-        Column {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Box(contentAlignment = Alignment.BottomEnd) {
-                    if (flagResId != 0) {
-                        FlagIcon(
-                            countryFlag = flagResId,
-                            size = DpSize(36.dp, 24.dp)
-                        )
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp, 24.dp)
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(colors.backgroundNorm),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = ProtonIcons.Earth,
-                                contentDescription = stringResource(R.string.desc_country),
-                                tint = colors.iconNorm,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
-                    if (showTorBadge) {
-                        Box(
-                            modifier = Modifier
-                                .offset(x = 5.dp, y = 5.dp)
-                                .size(16.dp)
-                                .background(colors.backgroundNorm, CircleShape)
-                                .padding(2.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(
-                                imageVector = ImageVector.vectorResource(R.drawable.ic_tor_project),
-                                contentDescription = stringResource(R.string.connection_mode_tor),
-                                tint = colors.brandNorm,
-                                modifier = Modifier.fillMaxSize(),
-                            )
-                        }
-                    } else if (isConnected) {
-                        Box(
-                            modifier = Modifier
-                                .offset(x = 4.dp, y = 4.dp)
-                                .size(10.dp)
-                                .background(colors.notificationSuccess, CircleShape)
-                                .padding(2.dp)
-                                .background(colors.backgroundNorm, CircleShape)
-                                .padding(1.dp)
-                                .background(colors.notificationSuccess, CircleShape)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.width(16.dp))
-
-                Text(
-                    text = localizedName,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = colors.textNorm,
-                    modifier = Modifier.weight(1f)
-                )
-
-                LoadIndicator(load = country.averageLoad, displayMode = displayMode)
-
-                IconButton(
-                    onClick = onMoreClick,
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(
-                        imageVector = ProtonIcons.ThreeDotsVertical,
-                        contentDescription = stringResource(R.string.desc_more_options),
-                        tint = colors.iconWeak
-                    )
-                }
-            }
-
-            LoadProgressBar(load = country.averageLoad, displayMode = displayMode)
-        }
-    }
+    ServerRow(
+        title = localizedName,
+        isConnected = isConnected,
+        onClick = onClick,
+        leading = { CountryFlagBadge(flagResId, isConnected, showTorBadge) },
+        load = country.averageLoad,
+        displayMode = displayMode,
+        modifier = modifier,
+        trailing = { DrillIcon(onClick = onMoreClick) },
+    )
 }
 
 @Composable
@@ -480,86 +553,31 @@ fun CityCard(
     displayMode: ServerLoadDisplayMode = ServerLoadDisplayMode.ALL
 ) {
     val colors = ProtonNextTheme.colors
-    val interactionSource = remember { MutableInteractionSource() }
-
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .liquidGlass(
-                shape = RoundedCornerShape(20.dp),
-                alpha = if (isConnected) 0.2f else 0.4f,
-                shadowElevation = 0.dp
-            )
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick
-            )
-    ) {
-        Column {
-            Row(
+    ServerRow(
+        title = city.localizedName,
+        isConnected = isConnected,
+        onClick = onClick,
+        leading = {
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                    .size(36.dp, 24.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(colors.backgroundSecondary),
+                contentAlignment = Alignment.Center
             ) {
-                Box(contentAlignment = Alignment.BottomEnd) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp, 24.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(colors.backgroundNorm),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = ProtonIcons.Buildings,
-                            contentDescription = null,
-                            tint = colors.iconNorm,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                    if (isConnected) {
-                        Box(
-                            modifier = Modifier
-                                .offset(x = 4.dp, y = 4.dp)
-                                .size(10.dp)
-                                .background(colors.notificationSuccess, CircleShape)
-                                .padding(2.dp)
-                                .background(colors.backgroundNorm, CircleShape)
-                                .padding(1.dp)
-                                .background(colors.notificationSuccess, CircleShape)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.width(16.dp))
-
-                Text(
-                    text = city.localizedName,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = colors.textNorm,
-                    modifier = Modifier.weight(1f)
+                Icon(
+                    imageVector = ProtonIcons.Buildings,
+                    contentDescription = null,
+                    tint = colors.iconNorm,
+                    modifier = Modifier.size(20.dp)
                 )
-
-                LoadIndicator(load = city.averageLoad, displayMode = displayMode)
-
-                IconButton(
-                    onClick = onMoreClick,
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(
-                        imageVector = ProtonIcons.ThreeDotsVertical,
-                        contentDescription = stringResource(R.string.desc_more_options),
-                        tint = colors.iconWeak
-                    )
-                }
             }
-
-            LoadProgressBar(load = city.averageLoad, displayMode = displayMode)
-        }
-    }
+        },
+        load = city.averageLoad,
+        displayMode = displayMode,
+        modifier = modifier,
+        trailing = { DrillIcon(onClick = onMoreClick) },
+    )
 }
 
 @Composable
@@ -571,52 +589,128 @@ fun ServerItemCard(
     displayMode: ServerLoadDisplayMode = ServerLoadDisplayMode.ALL
 ) {
     val colors = ProtonNextTheme.colors
-    val interactionSource = remember { MutableInteractionSource() }
+    ServerRow(
+        title = server.name,
+        isConnected = isConnected,
+        onClick = onClick,
+        leading = {
+            // Keep the title aligned with the flag column of country/city rows.
+            Spacer(modifier = Modifier.size(36.dp, 24.dp))
+        },
+        load = server.averageLoad,
+        displayMode = displayMode,
+        modifier = modifier,
+        trailing = if (isConnected) {
+            {
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .background(colors.notificationSuccess, CircleShape)
+                )
+            }
+        } else null,
+    )
+}
 
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .liquidGlass(
-                shape = RoundedCornerShape(20.dp),
-                alpha = if (isConnected) 0.2f else 0.4f,
-                shadowElevation = 0.dp
+@Composable
+private fun SearchResultsList(
+    results: List<SearchResult>,
+    connectedServer: LogicalServer?,
+    loadDisplayMode: ServerLoadDisplayMode,
+    onCountryClick: (SearchResult.Country) -> Unit,
+    onCityClick: (SearchResult.City) -> Unit,
+    onServerClick: (SearchResult.Server) -> Unit,
+) {
+    val colors = ProtonNextTheme.colors
+    val context = LocalContext.current
+
+    if (results.isEmpty()) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(
+                text = stringResource(R.string.search_no_results),
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.textWeak,
             )
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick
-            )
+        }
+        return
+    }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 140.dp),
     ) {
-        Column {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = server.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = colors.textNorm
+        items(
+            results,
+            key = { result ->
+                when (result) {
+                    is SearchResult.Country -> "c:${result.code}"
+                    is SearchResult.City -> "t:${result.countryCode}:${result.cityName}"
+                    is SearchResult.Server -> "s:${result.server.id}"
+                }
+            },
+            contentType = { it::class },
+        ) { result ->
+            when (result) {
+                is SearchResult.Country -> {
+                    val flagResId = remember(result.code) { CountryUtils.getFlagResource(context, result.code) }
+                    ServerRow(
+                        title = result.localizedName,
+                        subtitle = stringResource(R.string.desc_country),
+                        isConnected = connectedServer?.exitCountry == result.code,
+                        onClick = { onCountryClick(result) },
+                        leading = { CountryFlagBadge(flagResId, isConnected = false, showTorBadge = false) },
+                        load = result.averageLoad,
+                        displayMode = loadDisplayMode,
                     )
                 }
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    LoadIndicator(load = server.averageLoad, displayMode = displayMode)
-                    if (isConnected) {
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Box(
-                            modifier = Modifier
-                                .size(10.dp)
-                                .background(colors.notificationSuccess, CircleShape)
-                        )
+                is SearchResult.City -> {
+                    val countryName = remember(result.countryCode) {
+                        CountryUtils.getCountryName(context, result.countryCode)
                     }
+                    ServerRow(
+                        title = result.localizedName,
+                        subtitle = countryName,
+                        isConnected = connectedServer?.exitCountry == result.countryCode &&
+                            connectedServer?.city == result.cityName,
+                        onClick = { onCityClick(result) },
+                        leading = {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp, 24.dp)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(colors.backgroundSecondary),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = ProtonIcons.Buildings,
+                                    contentDescription = null,
+                                    tint = colors.iconNorm,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        },
+                        load = result.averageLoad,
+                        displayMode = loadDisplayMode,
+                    )
+                }
+                is SearchResult.Server -> {
+                    val flagResId = remember(result.server.exitCountry) {
+                        CountryUtils.getFlagResource(context, result.server.exitCountry)
+                    }
+                    val countryName = remember(result.server.exitCountry) {
+                        CountryUtils.getCountryName(context, result.server.exitCountry)
+                    }
+                    ServerRow(
+                        title = result.server.name,
+                        subtitle = countryName,
+                        isConnected = connectedServer?.id == result.server.id,
+                        onClick = { onServerClick(result) },
+                        leading = { CountryFlagBadge(flagResId, isConnected = false, showTorBadge = false) },
+                        load = result.server.averageLoad,
+                        displayMode = loadDisplayMode,
+                    )
                 }
             }
-            LoadProgressBar(load = server.averageLoad, displayMode = displayMode)
         }
     }
 }

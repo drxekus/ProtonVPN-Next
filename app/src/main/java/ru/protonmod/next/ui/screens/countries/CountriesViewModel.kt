@@ -44,11 +44,20 @@ import ru.protonmod.next.data.local.SessionDao
 import ru.protonmod.next.data.local.SettingsManager
 import ru.protonmod.next.data.network.LogicalServer
 import ru.protonmod.next.data.state.ConnectedServerState
+import ru.protonmod.next.ui.utils.CountryUtils
 import ru.protonmod.next.vpn.AmneziaVpnManager
+import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 
 data class CountryDisplayItem(val code: String, val averageLoad: Int)
 data class CityDisplayItem(val name: String, val localizedName: String, val averageLoad: Int)
+
+/** A single row in the search results: a country, a city or an exact server. */
+sealed class SearchResult {
+    data class Country(val code: String, val localizedName: String, val averageLoad: Int) : SearchResult()
+    data class City(val countryCode: String, val cityName: String, val localizedName: String, val averageLoad: Int) : SearchResult()
+    data class Server(val server: LogicalServer) : SearchResult()
+}
 
 enum class CountryConnectionMode { STANDARD, TOR }
 
@@ -97,6 +106,9 @@ class CountriesViewModel @Inject constructor(
 
     companion object {
         private const val TAG = "CountriesViewModel"
+        private const val COUNTRY_RESULT_LIMIT = 8
+        private const val CITY_RESULT_LIMIT = 12
+        private const val SERVER_RESULT_LIMIT = 30
     }
 
     private val _navState = MutableStateFlow<NavigationState>(NavigationState.Countries)
@@ -163,6 +175,61 @@ class CountriesViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), CountriesUiState.Loading)
 
     val connectedServer: StateFlow<LogicalServer?> = connectedServerState.connectedServer
+
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+
+    /** Results for the current query: matching countries, then cities, then servers. Empty when blank. */
+    val searchResults: StateFlow<List<SearchResult>> = combine(
+        vpnRepository.getServersFlow(), _searchQuery
+    ) { servers, query ->
+        val q = query.trim()
+        if (q.isBlank()) emptyList() else buildSearchResults(servers, q)
+    }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun setSearchQuery(query: String) {
+        _searchQuery.value = query
+    }
+
+    private fun buildSearchResults(servers: List<LogicalServer>, query: String): List<SearchResult> {
+        val q = query.lowercase()
+        fun avg(list: List<LogicalServer>) = if (list.isEmpty()) 0 else list.map { it.averageLoad }.average().toInt()
+        // Names match from the start of a word ("бел" finds "Белград", "нью" finds "Нью-Йорк"),
+        // so a short query does not pull in every name that merely contains those letters.
+        fun wordStarts(text: String) = text.lowercase().split(' ', '-', '(', ')', ',', '.', '/')
+            .any { it.startsWith(q) }
+
+        val countries = servers.groupBy { it.exitCountry }
+            .mapNotNull { (code, list) ->
+                val name = CountryUtils.getCountryName(context, code)
+                if (code.lowercase().startsWith(q) || wordStarts(name)) {
+                    SearchResult.Country(code, name, avg(list))
+                } else null
+            }
+            .sortedBy { it.localizedName }
+            .take(COUNTRY_RESULT_LIMIT)
+
+        val cities = servers.groupBy { it.exitCountry to it.city }
+            .mapNotNull { (key, list) ->
+                val (code, city) = key
+                val localized = list.firstOrNull()?.localizedCity ?: city
+                if (wordStarts(city) || wordStarts(localized)) {
+                    SearchResult.City(code, city, localized, avg(list))
+                } else null
+            }
+            .sortedBy { it.localizedName }
+            .take(CITY_RESULT_LIMIT)
+
+        val servers2 = servers
+            .filter { it.name.lowercase().contains(q) }
+            .sortedBy { it.name }
+            .take(SERVER_RESULT_LIMIT)
+            .map { SearchResult.Server(it) }
+
+        return countries + cities + servers2
+    }
 
     init {
         initialFetch()
@@ -240,14 +307,19 @@ class CountriesViewModel @Inject constructor(
     fun selectCity(city: String) {
         val nav = _navState.value
         if (nav !is NavigationState.Cities) return
+        selectCity(nav.countryCode, city)
+    }
+
+    // Overload used by search, where there is no open bottom sheet to read the country from.
+    fun selectCity(countryCode: String, city: String) {
         applicationScope.launch {
-            settingsManager.setLastConnectChoice(LastChoice.City(nav.countryCode, city).encode())
+            settingsManager.setLastConnectChoice(LastChoice.City(countryCode, city).encode())
             val servers = vpnRepository.getCachedServers()
-            val serversInCity = servers.filter { it.exitCountry == nav.countryCode && it.city == city }
+            val serversInCity = servers.filter { it.exitCountry == countryCode && it.city == city }
             if (serversInCity.isNotEmpty()) {
                 val bestServer = ServerSelector.fastest(serversInCity)
                 if (bestServer != null) {
-                    connectToServer(bestServer, ServerScope.City(nav.countryCode, city))
+                    connectToServer(bestServer, ServerScope.City(countryCode, city))
                 } else {
                     _error.value = context.getString(R.string.label_server_unavailable)
                 }
