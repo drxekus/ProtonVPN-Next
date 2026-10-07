@@ -61,20 +61,6 @@ fun KillSwitchScreen(
         Box(
             modifier = Modifier.fillMaxSize().padding(paddingValues)
         ) {
-            // Background gradient decoration
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                colors.brandNorm.copy(alpha = 0.25f),
-                                colors.backgroundNorm.copy(alpha = 0.1f),
-                                colors.backgroundNorm
-                            )
-                        )
-                    )
-            )
 
             Column(
                 modifier = Modifier
@@ -89,52 +75,6 @@ fun KillSwitchScreen(
                     onBack = onBack
                 )
 
-                // Header Image
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 32.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(120.dp)
-                            .clip(CircleShape)
-                            .background(colors.brandNorm.copy(alpha = 0.15f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = ProtonIcons.ShieldHalfFilled,
-                            contentDescription = null,
-                            tint = colors.brandNorm,
-                            modifier = Modifier.size(64.dp)
-                        )
-                    }
-                }
-
-                // Title
-                Text(
-                    text = stringResource(R.string.kill_switch_title),
-                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
-                    color = colors.textNorm,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Description
-                Text(
-                    text = stringResource(R.string.kill_switch_desc),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = colors.textWeak,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 32.dp)
-                )
-
-                Spacer(modifier = Modifier.height(32.dp))
 
                 val step1 = stringResource(R.string.kill_switch_step_1)
                 val step2 = stringResource(R.string.kill_switch_step_2)

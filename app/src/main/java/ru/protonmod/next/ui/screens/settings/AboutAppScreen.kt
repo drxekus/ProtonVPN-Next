@@ -66,20 +66,6 @@ fun AboutAppScreen(
         contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { paddingValues ->
         Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-            // Background gradient
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                colors.brandNorm.copy(alpha = 0.25f),
-                                colors.backgroundNorm.copy(alpha = 0.1f),
-                                colors.backgroundNorm
-                            )
-                        )
-                    )
-            )
 
             LazyColumn(
                 modifier = Modifier
@@ -94,38 +80,7 @@ fun AboutAppScreen(
                         onBack = onBack
                     )
 
-                    // Header Image (App Logo)
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 32.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(120.dp)
-                                .clip(CircleShape)
-                                .background(colors.brandNorm.copy(alpha = 0.15f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(64.dp)
-                                    .clip(RoundedCornerShape(16.dp))
-                            ) {
-                                Image(
-                                    painter = painterResource(id = R.drawable.ic_launcher_background),
-                                    contentDescription = null,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                                Image(
-                                    painter = painterResource(id = R.drawable.ic_launcher_foreground),
-                                    contentDescription = null,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            }
-                        }
-                    }
+                    Spacer(modifier = Modifier.height(24.dp))
 
                     // App name
                     Text(

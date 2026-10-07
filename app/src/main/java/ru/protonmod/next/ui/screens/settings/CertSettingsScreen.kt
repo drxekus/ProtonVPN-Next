@@ -47,19 +47,6 @@ fun CertSettingsScreen(
         contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { paddingValues ->
         Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                colors.brandNorm.copy(alpha = 0.25f),
-                                colors.backgroundNorm.copy(alpha = 0.1f),
-                                colors.backgroundNorm
-                            )
-                        )
-                    )
-            )
 
             Column(
                 modifier = Modifier
@@ -73,49 +60,6 @@ fun CertSettingsScreen(
                     onBack = onBack
                 )
 
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 32.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(120.dp)
-                            .clip(CircleShape)
-                            .background(colors.brandNorm.copy(alpha = 0.15f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = ProtonIcons.Shield,
-                            contentDescription = null,
-                            modifier = Modifier.size(64.dp),
-                            tint = colors.brandNorm
-                        )
-                    }
-                }
-
-                Text(
-                    text = stringResource(R.string.settings_cert_management),
-                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
-                    color = colors.textNorm,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Text(
-                    text = stringResource(R.string.settings_cert_management_desc),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = colors.textWeak,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 32.dp)
-                )
-
-                Spacer(modifier = Modifier.height(32.dp))
 
                 Box(
                     modifier = Modifier

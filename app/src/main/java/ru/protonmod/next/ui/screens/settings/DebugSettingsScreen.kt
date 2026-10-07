@@ -81,20 +81,6 @@ fun DebugSettingsScreen(
             snackbarHost = { SnackbarHost(snackbarHostState) }
         ) { paddingValues ->
             Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-                // Background gradient decoration (immersive)
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            brush = Brush.verticalGradient(
-                                colors = listOf(
-                                    Color.Red.copy(alpha = 0.15f), // Red highlight for Debug
-                                    colors.backgroundNorm.copy(alpha = 0.1f),
-                                    colors.backgroundNorm
-                                )
-                            )
-                        )
-                )
 
                 LazyColumn(
                     modifier = Modifier
@@ -112,48 +98,6 @@ fun DebugSettingsScreen(
                             onBack = onBack
                         )
 
-                        // Header Icon
-                        Box(
-                            modifier = contentModifier.padding(vertical = 32.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(120.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.Red.copy(alpha = 0.15f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = ProtonIcons.Bug,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(64.dp),
-                                    tint = Color.Red
-                                )
-                            }
-                        }
-
-                        // Title
-                        Text(
-                            text = stringResource(R.string.debug_title),
-                            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
-                            color = colors.textNorm,
-                            textAlign = TextAlign.Center,
-                            modifier = contentModifier.padding(horizontal = 16.dp)
-                        )
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        // Description
-                        Text(
-                            text = stringResource(R.string.debug_desc),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = colors.textWeak,
-                            textAlign = TextAlign.Center,
-                            modifier = contentModifier.padding(horizontal = 32.dp)
-                        )
-
-                        Spacer(modifier = Modifier.height(32.dp))
                     }
 
                     // Session & Certificate Info

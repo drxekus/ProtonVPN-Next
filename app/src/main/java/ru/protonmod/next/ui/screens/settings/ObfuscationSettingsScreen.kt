@@ -93,19 +93,6 @@ fun ObfuscationSettingsScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                colors.brandNorm.copy(alpha = 0.25f),
-                                colors.backgroundNorm.copy(alpha = 0.1f),
-                                colors.backgroundNorm
-                            )
-                        )
-                    )
-            )
 
             LazyColumn(
                 modifier = Modifier

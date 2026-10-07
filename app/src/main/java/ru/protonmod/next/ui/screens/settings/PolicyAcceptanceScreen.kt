@@ -94,20 +94,6 @@ fun PolicyAcceptanceScreen(
         }
     ) { paddingValues ->
         Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-            // Background gradient
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                colors.brandNorm.copy(alpha = 0.25f),
-                                colors.backgroundNorm.copy(alpha = 0.1f),
-                                colors.backgroundNorm
-                            )
-                        )
-                    )
-            )
 
             Column(
                 modifier = Modifier
@@ -123,26 +109,7 @@ fun PolicyAcceptanceScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     item(contentType = "Header") {
-                        // Header Icon
-                        Box(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(120.dp)
-                                    .clip(CircleShape)
-                                    .background(colors.brandNorm.copy(alpha = 0.15f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = ProtonIcons.ShieldHalfFilled,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(64.dp),
-                                    tint = colors.brandNorm
-                                )
-                            }
-                        }
+                        Spacer(modifier = Modifier.height(24.dp))
 
                         // Title
                         Text(

@@ -66,17 +66,6 @@ fun ConnectionVerificationSettingsScreen(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
-            Box(
-                Modifier.fillMaxSize().background(
-                    Brush.verticalGradient(
-                        listOf(
-                            colors.brandNorm.copy(alpha = 0.25f),
-                            colors.backgroundNorm.copy(alpha = 0.1f),
-                            colors.backgroundNorm,
-                        )
-                    )
-                )
-            )
             LazyColumn(
                 modifier = Modifier.fillMaxSize().statusBarsPadding(),
                 horizontalAlignment = if (tablet) Alignment.CenterHorizontally else Alignment.Start,

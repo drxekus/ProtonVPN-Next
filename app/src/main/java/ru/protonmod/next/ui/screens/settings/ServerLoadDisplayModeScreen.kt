@@ -67,20 +67,6 @@ fun ServerLoadDisplayModeScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Background gradient
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                colors.brandNorm.copy(alpha = 0.25f),
-                                colors.backgroundNorm.copy(alpha = 0.1f),
-                                colors.backgroundNorm
-                            )
-                        )
-                    )
-            )
 
             Column(
                 modifier = Modifier
@@ -97,48 +83,6 @@ fun ServerLoadDisplayModeScreen(
 
                 val contentModifier = if (isTablet) Modifier.widthIn(max = 600.dp) else Modifier.fillMaxWidth()
 
-                // Header Icon
-                Box(
-                    modifier = contentModifier.padding(vertical = 32.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(120.dp)
-                            .clip(CircleShape)
-                            .background(colors.brandNorm.copy(alpha = 0.15f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = ProtonIcons.ChartLine,
-                            contentDescription = null,
-                            modifier = Modifier.size(64.dp),
-                            tint = colors.brandNorm
-                        )
-                    }
-                }
-
-                // Title
-                Text(
-                    text = stringResource(R.string.settings_load_display_mode),
-                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
-                    color = colors.textNorm,
-                    textAlign = TextAlign.Center,
-                    modifier = contentModifier.padding(horizontal = 16.dp)
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Description
-                Text(
-                    text = stringResource(R.string.load_mode_description),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = colors.textWeak,
-                    textAlign = TextAlign.Center,
-                    modifier = contentModifier.padding(horizontal = 32.dp)
-                )
-
-                Spacer(modifier = Modifier.height(32.dp))
 
                 ServerLoadDisplayMode.entries.forEach { mode ->
                     LoadModePreviewCard(

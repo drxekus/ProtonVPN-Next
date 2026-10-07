@@ -70,20 +70,6 @@ fun SplitTunnelingAppsScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Background gradient matching settings (immersive)
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                colors.brandNorm.copy(alpha = 0.25f),
-                                colors.backgroundNorm.copy(alpha = 0.1f),
-                                colors.backgroundNorm
-                            )
-                        )
-                    )
-            )
 
             Column(
                 modifier = Modifier
@@ -147,51 +133,6 @@ fun SplitTunnelingAppsScreen(
                     contentPadding = PaddingValues(bottom = 16.dp)
                 ) {
                     item(contentType = "Header") {
-                        // Header Icon
-                        Box(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(120.dp)
-                                    .clip(CircleShape)
-                                    .background(colors.brandNorm.copy(alpha = 0.15f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = ProtonIcons.Grid3,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(64.dp),
-                                    tint = colors.brandNorm
-                                )
-                            }
-                        }
-
-                        // Title
-                        Text(
-                            text = stringResource(
-                                if (uiState.splitTunnelingMode == "exclude") R.string.settings_excluded_apps
-                                else R.string.settings_included_apps
-                            ),
-                            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
-                            color = colors.textNorm,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
-                        )
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        // Description
-                        Text(
-                            text = stringResource(R.string.settings_split_tunneling_desc),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = colors.textWeak,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp)
-                        )
-
-                        Spacer(modifier = Modifier.height(32.dp))
                     }
 
                     item(contentType = "SearchBar") {
