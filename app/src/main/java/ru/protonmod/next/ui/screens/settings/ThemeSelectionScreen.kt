@@ -74,30 +74,8 @@ fun ThemeSelectionScreen(
         contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { paddingValues ->
         Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-            // Background gradient
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                colors.brandNorm.copy(alpha = 0.25f),
-                                colors.backgroundNorm.copy(alpha = 0.1f),
-                                colors.backgroundNorm
-                            )
-                        )
-                    )
-            )
 
-            val themes = remember {
-                AppTheme.entries.filter { theme ->
-                    when (theme) {
-                        AppTheme.SYSTEM -> Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-                        AppTheme.NOTHING -> ru.protonmod.next.utils.system.SystemUtils.isNothingDevice()
-                        else -> true
-                    }
-                }
-            }
+            val themes = remember { AppTheme.entries.toList() }
 
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
@@ -117,58 +95,6 @@ fun ThemeSelectionScreen(
                         onBack = onBack
                     )
                 }
-
-                item(
-                    span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) },
-                    contentType = "Header"
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            // Header Icon
-                            Box(
-                                modifier = Modifier.padding(vertical = 32.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(120.dp)
-                                        .clip(CircleShape)
-                                        .background(colors.brandNorm.copy(alpha = 0.15f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = ProtonIcons.Palette,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(64.dp),
-                                        tint = colors.brandNorm
-                                    )
-                                }
-                            }
-
-                            // Title
-                            Text(
-                                text = stringResource(R.string.settings_app_theme),
-                                style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
-                                color = colors.textNorm,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
-                            )
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            // Description
-                            Text(
-                                text = stringResource(R.string.settings_app_theme_desc),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = colors.textWeak,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 32.dp)
-                            )
-
-                            Spacer(modifier = Modifier.height(32.dp))
-                        }
-                    }
 
                     items(themes, key = { it.name }, contentType = { "Theme" }) { theme ->
                         ThemePreviewCard(
@@ -195,20 +121,8 @@ fun ThemePreviewCard(
 ) {
     val colors = ProtonNextTheme.colors
     val themeName = when (theme) {
-        AppTheme.SYSTEM -> stringResource(R.string.theme_system)
         AppTheme.LIGHT -> stringResource(R.string.theme_light)
         AppTheme.DARK -> stringResource(R.string.theme_dark)
-        AppTheme.AMOLED -> stringResource(R.string.theme_amoled)
-        AppTheme.GOLD_LIGHT -> stringResource(R.string.theme_gold_light)
-        AppTheme.GOLD_DARK -> stringResource(R.string.theme_gold_dark)
-        AppTheme.GOLD_AMOLED -> stringResource(R.string.theme_gold_amoled)
-        AppTheme.SURFSHARK -> stringResource(R.string.theme_surfshark)
-        AppTheme.NORD -> stringResource(R.string.theme_nord)
-        AppTheme.IPVANISH -> stringResource(R.string.theme_ipvanish)
-        AppTheme.PUREVPN -> stringResource(R.string.theme_purevpn)
-        AppTheme.MULLVAD -> stringResource(R.string.theme_mullvad)
-        AppTheme.WINDSCRIBE -> stringResource(R.string.theme_windscribe)
-        AppTheme.NOTHING -> stringResource(R.string.theme_nothing)
     }
 
     Column(
@@ -270,32 +184,9 @@ fun MiniDashboardPreview(
     theme: AppTheme,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
-    val isSystemDark = isSystemInDarkTheme()
-    val dynamicColorSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-
     val themeColors = when (theme) {
-        AppTheme.SYSTEM -> {
-            if (dynamicColorSupported) {
-                val scheme = if (isSystemDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-                ProtonColors.fromMaterial3(scheme, isSystemDark)
-            } else {
-                if (isSystemDark) ProtonColors.Dark else ProtonColors.Light
-            }
-        }
         AppTheme.LIGHT -> ProtonColors.Light
         AppTheme.DARK -> ProtonColors.Dark
-        AppTheme.AMOLED -> ProtonColors.Amoled
-        AppTheme.GOLD_LIGHT -> ProtonColors.GoldLight
-        AppTheme.GOLD_DARK -> ProtonColors.GoldDark
-        AppTheme.GOLD_AMOLED -> ProtonColors.GoldAmoled
-        AppTheme.SURFSHARK -> ProtonColors.Surfshark
-        AppTheme.NORD -> ProtonColors.Nord
-        AppTheme.IPVANISH -> ProtonColors.IPVanish
-        AppTheme.PUREVPN -> ProtonColors.PureVPN
-        AppTheme.MULLVAD -> ProtonColors.Mullvad
-        AppTheme.WINDSCRIBE -> ProtonColors.Windscribe
-        AppTheme.NOTHING -> ProtonColors.Nothing
     }
 
     CompositionLocalProvider(LocalColors provides themeColors) {

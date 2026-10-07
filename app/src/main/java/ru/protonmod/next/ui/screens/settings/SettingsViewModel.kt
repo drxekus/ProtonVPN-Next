@@ -105,7 +105,7 @@ data class SettingsUiState(
     val spoofCountryCode: String = "",
 
     // Customization
-    val appTheme: AppTheme = if (SystemUtils.isNothingDevice()) AppTheme.NOTHING else AppTheme.DARK,
+    val appTheme: AppTheme = AppTheme.DARK,
     val serverLoadDisplayMode: ServerLoadDisplayMode = ServerLoadDisplayMode.ALL,
 
     // OTA Update Settings

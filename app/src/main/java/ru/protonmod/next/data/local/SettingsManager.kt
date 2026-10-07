@@ -313,19 +313,19 @@ class SettingsManager @Inject constructor(
         it[CONNECTION_AUTO_RECONNECT] ?: true
     }
 
+    /** Light or dark by the phone's mode at the time; used until the user picks a theme. */
     val defaultTheme: AppTheme
-        get() = if (SystemUtils.isNothingDevice()) AppTheme.NOTHING else AppTheme.SYSTEM
+        get() = AppTheme.fromStoredName(null, isSystemNight())
+
+    private fun isSystemNight(): Boolean =
+        (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
+            android.content.res.Configuration.UI_MODE_NIGHT_YES
 
     val otaUpdateFrequency: Flow<String> = dataStore.data.map { it[OTA_UPDATE_FREQUENCY] ?: "daily" }
     val otaLastCheckTime: Flow<Long> = dataStore.data.map { it[OTA_LAST_CHECK_TIME] ?: 0L }
 
     val appTheme: Flow<ru.protonmod.next.ui.theme.AppTheme> = dataStore.data.map { preferences ->
-        val themeString = preferences[APP_THEME] ?: return@map defaultTheme
-        try {
-            ru.protonmod.next.ui.theme.AppTheme.valueOf(themeString)
-        } catch (e: Exception) {
-            defaultTheme
-        }
+        AppTheme.fromStoredName(preferences[APP_THEME], isSystemNight())
     }
 
     val serverLoadDisplayMode: Flow<ServerLoadDisplayMode> = dataStore.data.map { preferences ->

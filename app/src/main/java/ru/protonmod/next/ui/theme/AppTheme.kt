@@ -18,18 +18,21 @@
 package ru.protonmod.next.ui.theme
 
 enum class AppTheme {
-    SYSTEM,
     LIGHT,
-    DARK,
-    AMOLED,
-    GOLD_LIGHT,
-    GOLD_DARK,
-    GOLD_AMOLED,
-    SURFSHARK,
-    NORD,
-    IPVANISH,
-    PUREVPN,
-    MULLVAD,
-    WINDSCRIBE,
-    NOTHING
+    DARK;
+
+    companion object {
+        /** Themes of older versions that were built on the light palette. */
+        private val LIGHT_BASED = setOf("LIGHT", "GOLD_LIGHT", "SURFSHARK", "NORD")
+
+        /**
+         * Reads a stored theme name. Only light and dark are left: removed themes map to the one
+         * they were based on, and "system" or no choice follows the phone's current mode.
+         */
+        fun fromStoredName(name: String?, systemDark: Boolean): AppTheme = when {
+            name == null || name == "SYSTEM" -> if (systemDark) DARK else LIGHT
+            name in LIGHT_BASED -> LIGHT
+            else -> DARK
+        }
+    }
 }

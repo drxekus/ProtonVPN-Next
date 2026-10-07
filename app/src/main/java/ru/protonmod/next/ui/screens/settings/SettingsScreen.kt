@@ -99,20 +99,6 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Background gradient decoration (immersive)
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                colors.brandNorm.copy(alpha = 0.25f),
-                                colors.backgroundNorm.copy(alpha = 0.1f),
-                                colors.backgroundNorm
-                            )
-                        )
-                    )
-            )
 
             SettingsContent(
                 state = uiState,
@@ -542,20 +528,8 @@ private fun CustomizationSettingsSection(
 ) {
     SettingsCategory(modifier = modifier, title = stringResource(R.string.settings_customization)) {
         val currentThemeName = when (state.appTheme) {
-            AppTheme.SYSTEM -> stringResource(R.string.theme_system)
             AppTheme.LIGHT -> stringResource(R.string.theme_light)
             AppTheme.DARK -> stringResource(R.string.theme_dark)
-            AppTheme.AMOLED -> stringResource(R.string.theme_amoled)
-            AppTheme.GOLD_LIGHT -> stringResource(R.string.theme_gold_light)
-            AppTheme.GOLD_DARK -> stringResource(R.string.theme_gold_dark)
-            AppTheme.GOLD_AMOLED -> stringResource(R.string.theme_gold_amoled)
-            AppTheme.SURFSHARK -> stringResource(R.string.theme_surfshark)
-            AppTheme.NORD -> stringResource(R.string.theme_nord)
-            AppTheme.IPVANISH -> stringResource(R.string.theme_ipvanish)
-            AppTheme.PUREVPN -> stringResource(R.string.theme_purevpn)
-            AppTheme.MULLVAD -> stringResource(R.string.theme_mullvad)
-            AppTheme.WINDSCRIBE -> stringResource(R.string.theme_windscribe)
-            AppTheme.NOTHING -> stringResource(R.string.theme_nothing)
         }
 
         SettingRowWithIcon(
