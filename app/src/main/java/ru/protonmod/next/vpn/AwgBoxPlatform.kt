@@ -97,6 +97,8 @@ class AwgBoxPlatform(
     @Volatile private var lastPublishedInterface: PublishedInterface? = null
     /** False until the first network of this engine run is published (that one is no change). */
     @Volatile private var initialNetworkPublished = false
+    /** Serializes interface updates sent to libbox; see [publishDefaultNetwork]. */
+    private val publishLock = Any()
     /** Network callbacks call into the engine and may block briefly; keep them off the main thread. */
     private val monitorThread = HandlerThread("awgbox-network-monitor").apply { start() }
     private val monitorHandler = Handler(monitorThread.looper)
@@ -243,11 +245,13 @@ class AwgBoxPlatform(
             }
 
             override fun onLost(network: Network) {
-                if (network != defaultNetwork) return
-                defaultNetwork = null
-                lastPublishedInterface = null
-                VpnEventLog.log("net: default network lost")
-                listener.updateDefaultInterface("", -1, false, false)
+                synchronized(publishLock) {
+                    if (network != defaultNetwork) return
+                    defaultNetwork = null
+                    lastPublishedInterface = null
+                    VpnEventLog.log("net: default network lost")
+                    listener.updateDefaultInterface("", -1, false, false)
+                }
             }
         }
         networkCallback = callback
@@ -300,7 +304,16 @@ class AwgBoxPlatform(
         lastPublishedInterface = null
     }
 
-    private fun publishDefaultNetwork(listener: InterfaceUpdateListener, network: Network) {
+    /**
+     * The engine-start thread and the monitor thread often publish the same first network at once.
+     * Without the lock the loser saw it as already published and returned while the winner's update
+     * was still on its way to libbox, so the engine started the AWG endpoint before it knew any
+     * interface and failed with "no available network interface".
+     */
+    private fun publishDefaultNetwork(listener: InterfaceUpdateListener, network: Network) =
+        synchronized(publishLock) { publishDefaultNetworkLocked(listener, network) }
+
+    private fun publishDefaultNetworkLocked(listener: InterfaceUpdateListener, network: Network) {
         val capabilities = connectivity.getNetworkCapabilities(network) ?: return
         // The underlying physical network must be published; selecting our own VPN TUN
         // would route the AWG endpoint back into itself.
