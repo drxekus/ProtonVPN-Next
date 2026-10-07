@@ -1,6 +1,6 @@
 # Чем этот форк отличается от оригинала
 
-Форк проекта ProtonVPN-Next (база — коммит `e4b08fa`, версия `12.0.0-alpha2st3-38`). Все изменения проверены на реальном телефоне и покрыты юнит-тестами (189 тестов проходят).
+Форк проекта ProtonVPN-Next (база — коммит `e4b08fa`, версия `12.0.0-alpha2st3-38`). Все изменения проверены на реальном телефоне и покрыты юнит-тестами (192 теста проходят).
 
 [English version below](#english)
 
@@ -50,6 +50,10 @@
 
 ## Интерфейс
 
+- **Поиск на экране стран.** Поле сверху ищет по названию страны, её коду (RS), городу и имени сервера (RS#23). Названия совпадают с начала слова, поэтому короткий запрос не тянет лишнего. Нажатие на результат подключает: к лучшему серверу страны или города либо к выбранному серверу.
+- **Простые списки.** Страны, города и серверы — строки с разделителями вместо отдельных «стеклянных» плашек; полоса нагрузки убрана, процент остался; «три точки» заменены стрелкой вглубь. Нажатие на строку по-прежнему подключает.
+- **Экраны настроек без шапки.** Убран крупный блок под заголовком (круг с иконкой, повтор заголовка, описание) — описания есть в кнопках ⓘ. Убраны декоративные фоновые градиенты.
+- **Только светлая и тёмная тема.** Остальные темы удалены. Сохранённый выбор переносится в ближайшую: светлые по основе — в светлую, остальные — в тёмную, «системная» — по текущему режиму телефона.
 - У каждого пункта настроек — кнопка ⓘ с описанием, что он делает на самом деле, когда его включать и что стоит по умолчанию (русский и английский).
 - Удалён переключатель «Ожидать завершения проверки»: проверка теперь всегда честная.
 - Нажатие на страну или город снова подключает к лучшему серверу в ней («три точки» — список городов и серверов). Раньше экран уходил на главную раньше, чем успевал прочитать список серверов, и подключение отменялось. То же исправлено для профилей.
@@ -75,7 +79,7 @@
 <a name="english"></a>
 # How this fork differs from the original
 
-A fork of ProtonVPN-Next at commit `e4b08fa`. Tested on a real phone; 189 unit tests pass.
+A fork of ProtonVPN-Next at commit `e4b08fa`. Tested on a real phone; 192 unit tests pass.
 
 **Connection stability**
 - "Fastest" only picks servers that are online and have a WireGuard key. Servers under maintenance kept a load of 0 and used to win. One shared `ServerSelector` replaces ten copies of that logic.
@@ -105,6 +109,9 @@ A fork of ProtonVPN-Next at commit `e4b08fa`. Tested on a real phone; 189 unit t
 - The AI assistant is removed, along with its stored keys.
 
 **UI**
+- Search on the countries screen by country name, code, city and server name ("RS#23"); names match from the start of a word. Lists are plain rows with dividers; the load bar is gone, the percent stays; a chevron replaces the three dots.
+- Settings screens lose the big header block (icon circle, repeated title, description; the ⓘ buttons keep the descriptions) and the decorative background gradients.
+- Only the light and dark themes are left; a saved removed theme maps to the palette it was based on, "system" to the phone's current mode.
 - Every setting has an ⓘ explanation in English and Russian. Several wrong labels are fixed.
 - With Shizuku installed, the split tunnelling screen writes the excluded apps into Android's lockdown exception list (two commands, on a tap only).
 - Tapping a country or city connects to its best server again (the screen used to navigate away and cancel the connection); the same fix applies to profiles. The "server not responding" warning clears on disconnect.
