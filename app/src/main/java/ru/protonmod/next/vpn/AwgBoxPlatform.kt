@@ -89,6 +89,8 @@ class AwgBoxPlatform(
     private val vpnNetworkMonitor: VpnNetworkMonitor,
     /** Called after the default network really changed while the engine was running. */
     private val onNetworkPathChanged: () -> Unit,
+    /** Called when the phone lost its last usable network while the engine was running. */
+    private val onDefaultNetworkLost: () -> Unit,
     private val onTunOpened: (ParcelFileDescriptor) -> Unit
 ) : PlatformInterface {
     private val connectivity = service.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
@@ -251,6 +253,7 @@ class AwgBoxPlatform(
                     lastPublishedInterface = null
                     VpnEventLog.log("net: default network lost")
                     listener.updateDefaultInterface("", -1, false, false)
+                    onDefaultNetworkLost()
                 }
             }
         }

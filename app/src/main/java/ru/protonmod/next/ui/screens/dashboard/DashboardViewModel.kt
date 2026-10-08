@@ -89,6 +89,8 @@ sealed class DashboardUiState {
         val connectedServer: LogicalServer? = null,
         val isConnecting: Boolean = false,
         val vpnState: AmneziaVpnManager.VpnState = AmneziaVpnManager.VpnState.DISCONNECTED,
+        /** A working tunnel lost its path and is being restored. */
+        val isRecovering: Boolean = false,
         val certificateState: AmneziaVpnManager.CertificateState = AmneziaVpnManager.CertificateState.Valid,
         val originalLocationText: LocationText? = null,
         val vpnLocationText: LocationText? = null,
@@ -171,7 +173,8 @@ class DashboardViewModel @Inject constructor(
         amneziaVpnManager.connectionWarning,
         settingsManager.pauseEndTime,
         settingsManager.netShieldLevel,
-        localNetShield.stats
+        localNetShield.stats,
+        amneziaVpnManager.isRecovering
     ) { args: Array<Any?> ->
         @Suppress("UNCHECKED_CAST")
         val servers = args[0] as List<LogicalServer>
@@ -197,6 +200,7 @@ class DashboardViewModel @Inject constructor(
         val pauseEndTime = args[18] as Long
         val netShieldLevel = args[19] as NetShieldLevel
         val netShieldStats = args[20] as NetShieldStats
+        val isRecovering = args[21] as Boolean
 
         if (isUpdating && servers.isEmpty()) {
             DashboardUiState.Loading
@@ -225,6 +229,7 @@ class DashboardViewModel @Inject constructor(
                 connectedServer = connectedServer,
                 isConnecting = isConnecting,
                 vpnState = vpnState,
+                isRecovering = isRecovering,
                 certificateState = certState,
                 originalLocationText = originalLocationText,
                 vpnLocationText = vpnLocationText,

@@ -159,6 +159,8 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
         const val EXTRA_SESSION_ID = "session_id"
         const val EXTRA_IS_RECONNECTING = "is_reconnecting"
         const val EXTRA_VERIFIED = "verified"
+        /** True while a tunnel that was working is being restored (see [recovering]). */
+        const val EXTRA_RECOVERING = "recovering"
         const val EXTRA_VERIFICATION_MODE = "verification_mode"
         const val EXTRA_VERIFICATION_REQUIRED = "verification_required"
         const val EXTRA_HANDSHAKE_TIMEOUT_SECONDS = "handshake_timeout_seconds"
@@ -187,11 +189,24 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
 
         /** Delays between automatic recovery attempts; the last one repeats. */
         private val RECOVERY_DELAYS_MS = longArrayOf(1_000, 3_000, 5_000, 10_000, 20_000, 30_000, 60_000)
-        /** WireGuard retries a handshake every 5 s; this long without an answer is a dead tunnel. */
-        private const val HANDSHAKE_STALL_MS = 25_000L
+        /**
+         * WireGuard retries a handshake every 5 s; three unanswered tries mean a dead tunnel. In
+         * field logs 16 of 23 stalls came back right after a restart, usually on the very same
+         * network: the old UDP flow was dead, a new socket worked at once. Waiting 25 s for that
+         * kept the phone offline under "Connected" for no gain.
+         */
+        private const val HANDSHAKE_STALL_MS = 12_000L
         private const val HEALTH_TICK_MS = 5_000L
         /** How long the tunnel may take to answer on a new network before it is restarted. */
         private const val NETWORK_CHANGE_SETTLE_MS = 1_500L
+        /** After a network change, a handshake unanswered this long means the new path is dead. */
+        private const val NETWORK_CHANGE_HANDSHAKE_MS = 7_000L
+        /** How long the handshakes after a network change are watched. */
+        private const val NETWORK_CHANGE_WATCH_MS = 30_000L
+        /** Data still arriving this long after a change (no handshake pending) proves the path. */
+        private const val NETWORK_CHANGE_TRAFFIC_PROOF_MS = 5_000L
+        /** A working tunnel whose handshake stays unanswered this long is shown as recovering. */
+        private const val RECOVERING_AFTER_MS = 7_000L
         /** Upper bound for keeping the phone awake while one recovery runs. */
         private const val RECOVERY_WAKE_LOCK_MS = 60_000L
         /** Retries scheduled further out than this run without a wake lock. */
@@ -251,6 +266,12 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
     private var state = VpnTunnelState.DOWN
     private var connecting = false
     private var verified = false
+    /**
+     * A tunnel that was working lost its path: no network, unanswered handshakes, or a restart
+     * because of that. The app and the notification say "Recovering" instead of "Connected"
+     * until a handshake is answered again; the system's VPN icon stays, as Android draws it.
+     */
+    private var recovering = false
     private var manualDisconnect = false
     private var notificationsEnabled = true
     private var killSwitchEnabled = false
@@ -300,7 +321,7 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
         // Libbox.setup is a long-running native call; run it on IO to avoid blocking the main
         // thread and triggering a Background ANR.
         scope.launch(Dispatchers.IO) { initializeLibbox() }
-        platform = AwgBoxPlatform(this, vpnNetworkMonitor, ::onNetworkPathChanged) { descriptor ->
+        platform = AwgBoxPlatform(this, vpnNetworkMonitor, ::onNetworkPathChanged, ::onDefaultNetworkLost) { descriptor ->
             tunDescriptor?.close()
             tunDescriptor = descriptor
         }
@@ -462,6 +483,7 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
         if (verified || state != VpnTunnelState.UP || connecting) return
         VpnEventLog.log("verified")
         verified = true
+        recovering = false
         connecting = false
         recoveryAttempt = 0
         releaseRecoveryWakeLock()
@@ -477,6 +499,7 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
         val isReconnect = intent.getBooleanExtra(EXTRA_IS_RECONNECTING, false)
         if (!isReconnect) {
             localNetShield.beginSessionStats()
+            recovering = false
         }
         val config = intent.getStringExtra(EXTRA_CONFIG) ?: run {
             ProtonLogger.e(TAG, "Missing awgbox configuration")
@@ -672,6 +695,7 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
      */
     private fun handleEngineFailure(permanent: Boolean, reason: String) {
         VpnEventLog.log("engine failure (permanent=$permanent, reason=$reason)")
+        val wasWorking = verified && state == VpnTunnelState.UP
         stopTrafficUpdates()
         stopHealthMonitor()
         handshakeVerificationJob?.cancel()
@@ -679,10 +703,12 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
         state = VpnTunnelState.DOWN
         verified = false
         if (!permanent && canRecoverAutomatically()) {
+            if (wasWorking) recovering = true
             scheduleRecovery(reason)
             return
         }
         connecting = false
+        recovering = false
         sendState(VpnTunnelState.DOWN)
         sendTunnelFailed(reason)
         updateNotification(VpnTunnelState.DOWN.name)
@@ -748,6 +774,7 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
             sendTunnelFailed(reason)
             return
         }
+        if (verified) recovering = true
         stopTrafficUpdates()
         stopHealthMonitor()
         state = VpnTunnelState.DOWN
@@ -777,6 +804,7 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
         engineJob?.cancel()
         connecting = false
         verified = false
+        recovering = false
         recoveryAttempt = 0
         state = VpnTunnelState.DOWN
         sendState(VpnTunnelState.DOWN)
@@ -883,6 +911,7 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
             putExtra(EXTRA_LOGICAL_SERVER_ID, logicalServerId)
             putExtra(EXTRA_IS_RECONNECTING, reconnectJob?.isActive == true)
             putExtra(EXTRA_VERIFIED, verified)
+            putExtra(EXTRA_RECOVERING, recovering)
             setPackage(packageName)
         })
     }
@@ -949,6 +978,7 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
     private fun createNotification(stateName: String): Notification {
         val serverName = connectedServerState.connectedServer.value?.name ?: getString(R.string.app_name)
         val title = when {
+            recovering && stateName != VpnTunnelState.DOWN.name -> getString(R.string.notification_title_recovering)
             stateName == VpnTunnelState.UP.name && verified -> getString(R.string.notification_title_connected, serverName)
             stateName == VpnTunnelState.UP.name -> getString(R.string.notification_title_verifying)
             stateName == STATE_CONNECTING -> getString(R.string.notification_title_connecting)
@@ -1073,6 +1103,8 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
                     if (state == VpnTunnelState.UP && !verified) {
                         ProtonLogger.i(TAG, "AmneziaWG handshake confirmed")
                         markVerified()
+                    } else {
+                        setRecovering(false)
                     }
                 }
             }
@@ -1101,18 +1133,75 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
                 delay(NETWORK_CHANGE_SETTLE_MS)
                 if (state != VpnTunnelState.UP || connecting || manualDisconnect) return@launch
                 // A handshake or any data from the server on the new path means it roamed fine.
-                if (lastHandshakeResponseAt > changedAt) {
-                    releaseRecoveryWakeLock()
+                val answered = lastHandshakeResponseAt > changedAt
+                if (!answered && !(rxAtChange >= 0 && TrafficStats.getUidRxBytes(uid) > rxAtChange)) {
+                    onTunnelUnresponsive(FAILURE_NETWORK_CHANGED)
                     return@launch
                 }
-                if (rxAtChange >= 0 && TrafficStats.getUidRxBytes(uid) > rxAtChange) {
+                if (!answered) {
                     VpnEventLog.log("tunnel kept receiving after the network change")
-                    releaseRecoveryWakeLock()
-                    return@launch
+                    if (!watchHandshakeAfterNetworkChange(changedAt)) return@launch
                 }
-                onTunnelUnresponsive(FAILURE_NETWORK_CHANGED)
+                // Received bytes alone once showed "Connected" for a moment before the restart;
+                // only an answered handshake or a quiet watch window ends "recovering".
+                setRecovering(false)
+                releaseRecoveryWakeLock()
             }
         }
+    }
+
+    /**
+     * Data that arrives right after a change does not prove the new path works: in field logs
+     * the tunnel "kept receiving", then its next handshake went unanswered and the phone stayed
+     * offline until the 25 s stall detector or the user restarted it. Restart as soon as a
+     * handshake on the new path stays unanswered for longer than one WireGuard retry.
+     *
+     * Returns false when the tunnel was restarted or replaced meanwhile, so the caller leaves
+     * the wake lock to that recovery.
+     */
+    private suspend fun watchHandshakeAfterNetworkChange(changedAt: Long): Boolean {
+        val uid = applicationInfo.uid
+        var previousRx = TrafficStats.getUidRxBytes(uid)
+        while (SystemClock.elapsedRealtime() - changedAt < NETWORK_CHANGE_WATCH_MS) {
+            delay(1.seconds)
+            if (state != VpnTunnelState.UP || connecting || manualDisconnect) return false
+            if (lastHandshakeResponseAt > changedAt) return true
+            val since = pendingInitiationSince
+            // WireGuard starts no handshake while traffic flows both ways, so a valid session
+            // can carry data for minutes without one. Data still arriving a few seconds after
+            // the change, with no handshake waiting, means the new path works.
+            val rx = TrafficStats.getUidRxBytes(uid)
+            if (since == 0L && rx > previousRx &&
+                SystemClock.elapsedRealtime() - changedAt > NETWORK_CHANGE_TRAFFIC_PROOF_MS
+            ) setRecovering(false)
+            previousRx = rx
+            if (since != 0L &&
+                SystemClock.elapsedRealtime() - maxOf(since, changedAt) > NETWORK_CHANGE_HANDSHAKE_MS
+            ) {
+                VpnEventLog.log("handshake unanswered on the new network")
+                onTunnelUnresponsive(FAILURE_NETWORK_CHANGED)
+                return false
+            }
+        }
+        return true
+    }
+
+    /** The phone has no network at all, so the tunnel cannot carry anything until one returns. */
+    private fun onDefaultNetworkLost() {
+        scope.launch { setRecovering(true) }
+    }
+
+    /**
+     * Marks a running tunnel as recovering or recovered. Restarts set the flag themselves and
+     * [markVerified] clears it; this covers the time the old engine is still running.
+     */
+    private fun setRecovering(value: Boolean) {
+        if (recovering == value || state != VpnTunnelState.UP || connecting || manualDisconnect) return
+        if (value && (!verified || verificationMode == ConnectionVerificationMode.DISABLED)) return
+        recovering = value
+        VpnEventLog.log(if (value) "link recovering" else "link recovered")
+        sendState(VpnTunnelState.UP)
+        updateNotification(VpnTunnelState.UP.name)
     }
 
     /**
@@ -1154,11 +1243,14 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
                 delay(HEALTH_TICK_MS)
                 if (lifecycleGeneration.get() != generation || state != VpnTunnelState.UP || connecting) return@launch
                 val since = pendingInitiationSince
-                if (verified && since != 0L && SystemClock.elapsedRealtime() - since > HANDSHAKE_STALL_MS) {
+                val unanswered = if (since == 0L) 0L else SystemClock.elapsedRealtime() - since
+                if (verified && unanswered > HANDSHAKE_STALL_MS) {
                     ProtonLogger.w(TAG, "WireGuard handshake unanswered for ${HANDSHAKE_STALL_MS / 1000}s")
                     onTunnelUnresponsive(FAILURE_HANDSHAKE_STALLED)
                     return@launch
                 }
+                // The restart above waits for several WireGuard retries; say so meanwhile.
+                if (verified && unanswered > RECOVERING_AFTER_MS) setRecovering(true)
             }
         }
     }

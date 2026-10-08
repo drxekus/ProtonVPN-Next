@@ -109,6 +109,14 @@ class AmneziaVpnManager @Inject constructor(
 
         /** The HTTP check through a fresh tunnel got no answer. */
         private const val REASON_PROBE_FAILED = "probe_failed"
+        /**
+         * Handshake failures this soon after a network change are not held against the
+         * obfuscation: on a lift ride or a fall back to 3G every variant fails for a while, and
+         * counting that marked working variants as blocked.
+         */
+        private const val LADDER_NETWORK_SETTLE_MS = 60_000L
+        /** How often a tunnel stuck in "Verifying" after a failed probe is probed again. */
+        private const val PROBE_RECHECK_MS = 15_000L
 
         /** Ports tried, in this order, when the port setting is "automatic". */
         private val AUTO_PORTS = listOf(443, 51820, 1194, 123)
@@ -185,6 +193,10 @@ class AmneziaVpnManager @Inject constructor(
         nextVpnManager.setState(newState)
     }
 
+    private val _isRecovering = MutableStateFlow(false)
+    /** The VPN service is restoring a tunnel that was working (no network, server silent). */
+    val isRecovering: StateFlow<Boolean> = _isRecovering.asStateFlow()
+
     private val _speed = MutableStateFlow<String?>(null)
     val speed: StateFlow<String?> = _speed.asStateFlow()
 
@@ -248,6 +260,9 @@ class AmneziaVpnManager @Inject constructor(
     private val refreshMutex = Mutex()
 
     init {
+        // Debug builds only: the app's verification and failover steps go into the same event
+        // log as the VPN service's, so a stuck state can be traced after the fact.
+        VpnEventLog.init(context)
         val filter = IntentFilter().apply {
             addAction(ProtonVpnService.ACTION_STATE_CHANGED)
             addAction(ProtonVpnService.ACTION_STATS_UPDATED)
@@ -261,6 +276,8 @@ class AmneziaVpnManager @Inject constructor(
                         val stateStr = intent.getStringExtra(ProtonVpnService.EXTRA_STATE)
                         val serverId = intent.getStringExtra(ProtonVpnService.EXTRA_LOGICAL_SERVER_ID)
                         val isServiceReconnecting = intent.getBooleanExtra(ProtonVpnService.EXTRA_IS_RECONNECTING, false)
+                        _isRecovering.value = stateStr != VpnTunnelState.DOWN.name &&
+                            intent.getBooleanExtra(ProtonVpnService.EXTRA_RECOVERING, false)
                         
                         if (serverId != null && serverId != currentServerId && stateStr != VpnTunnelState.DOWN.name) {
                             currentServerId = serverId
@@ -540,10 +557,13 @@ class AmneziaVpnManager @Inject constructor(
 
                 if (usable) {
                     ProtonLogger.i(TAG, "VPN connectivity confirmed")
+                    VpnEventLog.log("app: probe passed")
                     onTunnelVerified()
                 } else {
                     ProtonLogger.w(TAG, "No traffic through the tunnel; trying another endpoint")
+                    VpnEventLog.log("app: probe failed")
                     onTunnelFailed(REASON_PROBE_FAILED)
+                    recheckWhileVerifying(cycle, mode)
                 }
             } catch (cancellation: CancellationException) {
                 throw cancellation
@@ -553,6 +573,35 @@ class AmneziaVpnManager @Inject constructor(
             } finally {
                 // A cancelled check finishes after the next attempt may have begun its own cycle.
                 if (verificationCycle === cycle) verificationCycle = null
+            }
+        }
+    }
+
+    /**
+     * A failed probe hands the tunnel to failover, but failover may have nothing to switch to
+     * (every endpoint tried, auto-reconnect off, no saved request) while the service keeps a
+     * tunnel whose handshakes work. The screen then said "Verifying…" for good although traffic
+     * flowed. Probe such a tunnel again and report it connected once a round trip passes; a
+     * failover that does reconnect cancels this job.
+     */
+    private suspend fun recheckWhileVerifying(
+        cycle: VpnNetworkMonitor.VerificationCycle,
+        mode: ConnectionVerificationMode,
+    ) {
+        while (true) {
+            delay(PROBE_RECHECK_MS)
+            if (_tunnelState.value != VpnTunnelState.UP || _vpnState.value != VpnState.VERIFYING) return
+            val usable = vpnNetworkMonitor.awaitUsable(
+                cycle = cycle,
+                timeout = mode.verificationTimeoutMs.milliseconds,
+                retryDelay = mode.verificationRetryDelayMs.milliseconds,
+            )
+            if (_tunnelState.value != VpnTunnelState.UP || _vpnState.value != VpnState.VERIFYING) return
+            if (usable) {
+                ProtonLogger.i(TAG, "VPN connectivity confirmed on a later probe")
+                VpnEventLog.log("app: probe passed on recheck")
+                onTunnelVerified()
+                return
             }
         }
     }
@@ -594,15 +643,28 @@ class AmneziaVpnManager @Inject constructor(
 
     private suspend fun performFailover(reason: String) {
         if (isPaused || _vpnState.value == VpnState.DISCONNECTED || _vpnState.value == VpnState.DISCONNECTING) return
-        if (!settingsManager.connectionAutoReconnect.first()) return
-        val request = lastConnectionRequest ?: return
-        val session = sessionDao.getSession() ?: return
+        if (!settingsManager.connectionAutoReconnect.first()) {
+            VpnEventLog.log("app: failover skipped ($reason, auto-reconnect off)")
+            return
+        }
+        val request = lastConnectionRequest ?: run {
+            VpnEventLog.log("app: failover skipped ($reason, no saved connection)")
+            return
+        }
+        val session = sessionDao.getSession() ?: run {
+            VpnEventLog.log("app: failover skipped ($reason, no session)")
+            return
+        }
         // A handshake that never came back may be the network dropping WireGuard, not the server:
         // the next attempt also climbs the obfuscation ladder. A failed probe after a handshake
         // is not about obfuscation and keeps it.
         val failedVariant = request.obfuscationVariant
+        val networkSettling = vpnNetworkMonitor.physicalNetworkChangedWithin(LADDER_NETWORK_SETTLE_MS)
         val nextVariant = if (failedVariant != null && reason == ProtonVpnService.FAILURE_HANDSHAKE_TIMEOUT) {
-            withContext(dispatcherProvider.io()) {
+            if (networkSettling) {
+                ProtonLogger.i(TAG, "Network changed recently; not counting the failure against ${failedVariant.id}")
+                failedVariant
+            } else withContext(dispatcherProvider.io()) {
                 obfuscationAdvisor.nextAfterFailure(failedVariant, ladderFavorite(request), failover.triedVariants)
             }
         } else failedVariant
@@ -611,6 +673,7 @@ class AmneziaVpnManager @Inject constructor(
             ?: request.takeIf { nextVariant != null && nextVariant !in failover.triedVariants }
         val next = candidate?.copy(obfuscationVariant = nextVariant) ?: run {
             ProtonLogger.w(TAG, "No other endpoint left to try; the VPN service keeps retrying")
+            VpnEventLog.log("app: failover found no other endpoint ($reason)")
             _connectionWarning.value = ConnectionWarning.ServerNotResponding
             return
         }
@@ -623,6 +686,9 @@ class AmneziaVpnManager @Inject constructor(
             vpnRepositoryProvider.get().getCachedServers().find { it.id == next.logicalServerId }
                 ?.let(connectedServerState::setConnectedServer)
         }
+        VpnEventLog.log(
+            "app: failover ($reason) to " + if (next.logicalServerId == request.logicalServerId) "the same server" else "another server"
+        )
         currentServerId = next.logicalServerId
         connectionJob?.cancel()
         verificationJob?.cancel()

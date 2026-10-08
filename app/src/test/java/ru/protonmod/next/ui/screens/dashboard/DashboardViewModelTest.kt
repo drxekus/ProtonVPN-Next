@@ -121,6 +121,7 @@ class DashboardViewModelTest {
     private val serversFlow = MutableStateFlow(listOf(testServer))
     private val isUpdatingFlow = MutableStateFlow(false)
     private val vpnStateFlow = MutableStateFlow(AmneziaVpnManager.VpnState.DISCONNECTED)
+    private val recoveringFlow = MutableStateFlow(false)
     private val certStateFlow = MutableStateFlow(AmneziaVpnManager.CertificateState.Valid)
     private val connectedServerFlow = MutableStateFlow<LogicalServer?>(null)
     private val speedFlow = MutableStateFlow<String?>(null)
@@ -167,6 +168,7 @@ class DashboardViewModelTest {
         whenever(amneziaVpnManager.trafficRx).thenReturn(trafficRxFlow)
         whenever(amneziaVpnManager.trafficTx).thenReturn(trafficTxFlow)
         whenever(amneziaVpnManager.connectionWarning).thenReturn(MutableStateFlow(null))
+        whenever(amneziaVpnManager.isRecovering).thenReturn(recoveringFlow)
         whenever(amneziaVpnManager.tunnelState).thenReturn(tunnelStateFlow)
         
         whenever(connectedServerState.connectedServer).thenReturn(connectedServerFlow)
@@ -242,6 +244,18 @@ class DashboardViewModelTest {
         
         val state = viewModel.uiState.first { it is DashboardUiState.Success && it.isConnected }
         assertTrue("Expected isConnected=true", (state as DashboardUiState.Success).isConnected)
+    }
+
+    @Test
+    fun `a connected tunnel that is recovering is reported as such`() = runTest {
+        backgroundScope.launch(UnconfinedTestDispatcher()) { viewModel.uiState.collect() }
+        vpnStateFlow.value = AmneziaVpnManager.VpnState.CONNECTED
+        viewModel.uiState.first { it is DashboardUiState.Success && it.isConnected }
+
+        recoveringFlow.value = true
+
+        val state = viewModel.uiState.first { it is DashboardUiState.Success && it.isRecovering }
+        assertTrue((state as DashboardUiState.Success).isRecovering)
     }
 
     @Test

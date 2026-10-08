@@ -41,7 +41,9 @@ internal object VpnEventLog {
     @Volatile private var file: File? = null
 
     fun init(context: Context) {
-        if (BuildConfig.DEBUG) file = File(context.filesDir, FILE_NAME)
+        // The app and the VPN process both append here; each line is one small append.
+        val dir = context.filesDir ?: return
+        if (BuildConfig.DEBUG) file = File(dir, FILE_NAME)
     }
 
     fun log(event: String) {

@@ -14,6 +14,7 @@ import android.net.LinkProperties
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
+import android.os.SystemClock
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -74,6 +75,8 @@ class VpnNetworkMonitor @Inject constructor(
         context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
     private val cycleIds = AtomicLong(0)
     private val snapshot = MutableStateFlow(Snapshot())
+    /** When a physical network last appeared, disappeared or changed its interface or addresses. */
+    @Volatile private var lastPhysicalChangeAt = 0L
 
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) = refreshNetwork(network)
@@ -88,6 +91,7 @@ class VpnNetworkMonitor @Inject constructor(
 
         override fun onLost(network: Network) {
             val handle = network.networkHandle
+            if (snapshot.value.networks[handle]?.let(::isPhysical) == true) markPhysicalChange()
             snapshot.update { current ->
                 Snapshot(current.networks - handle)
             }
@@ -107,6 +111,22 @@ class VpnNetworkMonitor @Inject constructor(
             ProtonLogger.e(TAG, "Failed to register network callback", error)
         }
     }
+
+    /**
+     * True when a physical network appeared, disappeared or changed its interface or addresses
+     * within [windowMs]. Failures in that time say more about the handover than about the server.
+     */
+    fun physicalNetworkChangedWithin(windowMs: Long): Boolean {
+        val changedAt = lastPhysicalChangeAt
+        return changedAt != 0L && SystemClock.elapsedRealtime() - changedAt < windowMs
+    }
+
+    private fun markPhysicalChange() {
+        lastPhysicalChangeAt = SystemClock.elapsedRealtime()
+    }
+
+    private fun isPhysical(tracked: TrackedNetwork): Boolean =
+        tracked.capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == false
 
     /** Returns a snapshot of all currently active networks. */
     fun getTrackedNetworks(): Collection<TrackedNetwork> = snapshot.value.networks.values
@@ -294,8 +314,10 @@ class VpnNetworkMonitor @Inject constructor(
         val capabilities = connectivityManager.getNetworkCapabilities(network)
         val properties = connectivityManager.getLinkProperties(network)
         val handle = network.networkHandle
+        val tracked = TrackedNetwork(network, capabilities, properties)
+        if (isPhysical(tracked)) markPhysicalChange()
         snapshot.update { current ->
-            Snapshot(current.networks + (handle to TrackedNetwork(network, capabilities, properties)))
+            Snapshot(current.networks + (handle to tracked))
         }
     }
 
@@ -312,6 +334,7 @@ class VpnNetworkMonitor @Inject constructor(
 
     private fun updateLinkProperties(network: Network, properties: LinkProperties) {
         val handle = network.networkHandle
+        val before = snapshot.value.networks[handle]
         snapshot.update { current ->
             val existing = current.networks[handle]
             val updated = existing?.copy(linkProperties = properties)
@@ -319,6 +342,10 @@ class VpnNetworkMonitor @Inject constructor(
             if (existing == updated) current
             else Snapshot(current.networks + (handle to updated))
         }
+        val previous = before?.linkProperties
+        if (before != null && isPhysical(before) && previous != null &&
+            (previous.interfaceName != properties.interfaceName || previous.linkAddresses != properties.linkAddresses)
+        ) markPhysicalChange()
     }
 
     private companion object {
