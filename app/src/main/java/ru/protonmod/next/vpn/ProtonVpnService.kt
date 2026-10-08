@@ -18,6 +18,7 @@
 package ru.protonmod.next.vpn
 
 import ru.protonmod.next.netshield.LocalNetShield
+import android.app.AlarmManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -130,6 +131,8 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
         const val ACTION_QUERY_STATE = "ru.protonmod.next.vpn.QUERY_STATE"
         /** Restore the last tunnel unless the user turned the VPN off (e.g. after an app update). */
         const val ACTION_RESUME = "ru.protonmod.next.vpn.RESUME"
+        /** Fired by the watchdog alarm; restores the tunnel if the process was killed. */
+        const val ACTION_WATCHDOG = "ru.protonmod.next.vpn.WATCHDOG"
         /** Sent to the app whenever a tunnel attempt turns out not to carry traffic. */
         const val ACTION_TUNNEL_FAILED = "ru.protonmod.next.vpn.TUNNEL_FAILED"
         /**
@@ -212,6 +215,9 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
         /** Retries scheduled further out than this run without a wake lock. */
         private const val MAX_AWAKE_RECOVERY_DELAY_MS = 5_000L
         private const val NOTIFICATION_REFRESH_MS = 5_000L
+        /** How often the watchdog alarm checks that the tunnel's process is still alive. */
+        private const val WATCHDOG_INTERVAL_MS = 60_000L
+        private const val WATCHDOG_REQUEST_CODE = 7
         private const val APP_REQUEST_THROTTLE_MS = 30_000L
         private val APP_CONFIG_WAIT = 60.seconds
         /** A restored snapshot may carry an expired certificate; ask the app for a fresh one then. */
@@ -411,6 +417,7 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
             // offline until the app was opened again.
             null, SERVICE_INTERFACE -> handleSystemStart(alwaysOn = intent != null)
             ACTION_RESUME -> handleSystemStart(alwaysOn = false)
+            ACTION_WATCHDOG -> onWatchdog()
             else -> {
                 if (state == VpnTunnelState.DOWN && !connecting) {
                     stopForeground(STOP_FOREGROUND_REMOVE)
@@ -422,11 +429,54 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
         return if (state == VpnTunnelState.DOWN && !connecting) START_NOT_STICKY else START_STICKY
     }
 
+    /**
+     * Some firmwares (ColorOS among them) kill every process of an app swiped away from the
+     * recent apps, the VPN process with its foreground service included, and never restart the
+     * sticky service. While a tunnel should be up, an alarm is kept armed: if it fires and finds
+     * no tunnel (a fresh process), it restores the last one from the saved snapshot; otherwise
+     * it just arms itself again. A user disconnect disarms it.
+     */
+    private fun onWatchdog() {
+        if (connecting || state == VpnTunnelState.UP) {
+            armWatchdog()
+            return
+        }
+        VpnEventLog.log("watchdog: no running tunnel, restoring")
+        handleSystemStart(alwaysOn = false)
+    }
+
+    private fun watchdogIntent(): PendingIntent = PendingIntent.getForegroundService(
+        this,
+        WATCHDOG_REQUEST_CODE,
+        Intent(this, ProtonVpnService::class.java).setAction(ACTION_WATCHDOG),
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+    )
+
+    private fun armWatchdog() {
+        val alarms = getSystemService(ALARM_SERVICE) as? AlarmManager ?: return
+        val at = SystemClock.elapsedRealtime() + WATCHDOG_INTERVAL_MS
+        runCatching {
+            // An inexact alarm may run a minute late; use an exact one where it is allowed.
+            val exact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarms.canScheduleExactAlarms()
+            if (exact) {
+                alarms.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, at, watchdogIntent())
+            } else {
+                alarms.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, at, watchdogIntent())
+            }
+        }.onFailure { ProtonLogger.w(TAG, "Could not arm the watchdog: ${it.message}") }
+    }
+
+    private fun disarmWatchdog() {
+        val alarms = getSystemService(ALARM_SERVICE) as? AlarmManager ?: return
+        runCatching { alarms.cancel(watchdogIntent()) }
+    }
+
     private fun handleSystemStart(alwaysOn: Boolean) {
         VpnEventLog.log("system start (always-on=$alwaysOn, connecting=$connecting, state=$state)")
         if (connecting || state == VpnTunnelState.UP) return
         if (!alwaysOn && snapshotStore.userStopped) {
             ProtonLogger.i(TAG, "Restarted by the system after the user disconnected; staying off")
+            disarmWatchdog()
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return
@@ -516,6 +566,7 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
         )
         restoredFromSnapshot = intent.getBooleanExtra(EXTRA_RESTORED, false)
         VpnEventLog.log("start tunnel (reconnect=$isReconnect, restored=$restoredFromSnapshot)")
+        armWatchdog()
         // Every restart replays this exact command, so split tunnelling and the health settings
         // survive automatic reconnects (the retry intents used to be rebuilt without them).
         val connectIntent = Intent(intent).apply {
@@ -709,6 +760,7 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
         }
         connecting = false
         recovering = false
+        disarmWatchdog()
         sendState(VpnTunnelState.DOWN)
         sendTunnelFailed(reason)
         updateNotification(VpnTunnelState.DOWN.name)
@@ -792,6 +844,7 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
     private fun stopTunnel() {
         VpnEventLog.log("stop requested")
         manualDisconnect = true
+        disarmWatchdog()
         networkChangeJob?.cancel()
         releaseRecoveryWakeLock()
         snapshotStore.userStopped = true
