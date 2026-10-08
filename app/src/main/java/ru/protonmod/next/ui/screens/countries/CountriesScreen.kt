@@ -64,6 +64,13 @@ import ru.protonmod.next.ui.theme.ProtonNextTheme
 import ru.protonmod.next.ui.utils.CountryUtils
 import ru.protonmod.next.ui.utils.isTablet
 import ru.protonmod.next.utils.ProtonLogger
+import ru.protonmod.next.ui.theme.ClubShape
+import ru.protonmod.next.ui.theme.ClubSegmentedTabs
+import ru.protonmod.next.ui.theme.ClubLabel
+import ru.protonmod.next.ui.theme.clubPressHighlight
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.runtime.remember
+import ru.protonmod.next.ui.theme.RollingLabel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -252,7 +259,7 @@ private fun CountriesSearchField(
         onValueChange = onQueryChange,
         modifier = modifier.fillMaxWidth(),
         singleLine = true,
-        shape = RoundedCornerShape(16.dp),
+        shape = ClubShape,
         placeholder = { Text(stringResource(R.string.countries_search_hint)) },
         leadingIcon = {
             Icon(
@@ -356,36 +363,28 @@ private fun ConnectionModeSelector(
     selected: CountryConnectionMode,
     onSelect: (CountryConnectionMode) -> Unit,
 ) {
-    val colors = ProtonNextTheme.colors
-    Row(
+    val modes = CountryConnectionMode.entries
+    ClubSegmentedTabs(
+        count = modes.size,
+        selectedIndex = modes.indexOf(selected),
+        onSelect = { onSelect(modes[it]) },
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        CountryConnectionMode.entries.forEach { mode ->
-            val title = when (mode) {
-                CountryConnectionMode.STANDARD -> stringResource(R.string.connection_mode_standard)
-                CountryConnectionMode.TOR -> stringResource(R.string.connection_mode_tor)
-            }
-            Button(
-                onClick = { onSelect(mode) },
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (selected == mode) colors.brandNorm else colors.backgroundSecondary,
-                    contentColor = if (selected == mode) colors.textInverted else colors.textNorm,
-                ),
-                contentPadding = PaddingValues(horizontal = 8.dp),
-            ) {
-                if (mode == CountryConnectionMode.TOR) {
-                    Icon(
-                        ImageVector.vectorResource(R.drawable.ic_tor_project),
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(Modifier.width(4.dp))
-                }
-                Text(title, maxLines = 1)
-            }
+    ) { index, _, contentColor, rolled ->
+        val mode = modes[index]
+        val title = when (mode) {
+            CountryConnectionMode.STANDARD -> stringResource(R.string.connection_mode_standard)
+            CountryConnectionMode.TOR -> stringResource(R.string.connection_mode_tor)
         }
+        if (mode == CountryConnectionMode.TOR) {
+            Icon(
+                ImageVector.vectorResource(R.drawable.ic_tor_project),
+                contentDescription = null,
+                tint = contentColor,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+        }
+        RollingLabel(text = title, color = contentColor, rolled = rolled)
     }
 }
 
@@ -404,7 +403,7 @@ private fun CountryFlagBadge(
             Box(
                 modifier = Modifier
                     .size(36.dp, 24.dp)
-                    .clip(RoundedCornerShape(6.dp))
+                    .clip(ClubShape)
                     .background(colors.backgroundSecondary),
                 contentAlignment = Alignment.Center
             ) {
@@ -461,11 +460,13 @@ private fun ServerRow(
     trailing: (@Composable () -> Unit)? = null,
 ) {
     val colors = ProtonNextTheme.colors
+    val interaction = remember { MutableInteractionSource() }
     Column(
         modifier = modifier
             .fillMaxWidth()
             .background(if (isConnected) colors.brandNorm.copy(alpha = 0.08f) else Color.Transparent)
-            .clickable(onClick = onClick)
+            .clubPressHighlight(interaction)
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
     ) {
         Row(
             modifier = Modifier
@@ -561,7 +562,7 @@ fun CityCard(
             Box(
                 modifier = Modifier
                     .size(36.dp, 24.dp)
-                    .clip(RoundedCornerShape(6.dp))
+                    .clip(ClubShape)
                     .background(colors.backgroundSecondary),
                 contentAlignment = Alignment.Center
             ) {
@@ -677,7 +678,7 @@ private fun SearchResultsList(
                             Box(
                                 modifier = Modifier
                                     .size(36.dp, 24.dp)
-                                    .clip(RoundedCornerShape(6.dp))
+                                    .clip(ClubShape)
                                     .background(colors.backgroundSecondary),
                                 contentAlignment = Alignment.Center
                             ) {

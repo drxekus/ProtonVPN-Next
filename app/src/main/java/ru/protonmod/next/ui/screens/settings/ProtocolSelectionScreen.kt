@@ -41,6 +41,7 @@ import ru.protonmod.next.ui.icons.ProtonIcons
 import ru.protonmod.next.ui.theme.ProtonNextTheme
 import ru.protonmod.next.ui.theme.liquidGlass
 import ru.protonmod.next.ui.utils.isTablet
+import ru.protonmod.next.ui.theme.ClubShape
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -84,7 +85,7 @@ fun ProtocolSelectionScreen(
                         modifier = contentModifier
                             .padding(horizontal = 16.dp, vertical = 6.dp)
                             .liquidGlass(
-                                shape = RoundedCornerShape(20.dp),
+                                shape = ClubShape,
                                 alpha = if (isSelected) 0.6f else 0.4f,
                                 shadowElevation = 0.dp
                             )

@@ -58,6 +58,7 @@ import ru.protonmod.next.netshield.NetShieldSources
 import ru.protonmod.next.ui.icons.ProtonIcons
 import ru.protonmod.next.ui.theme.ProtonNextTheme
 import ru.protonmod.next.ui.theme.liquidGlass
+import ru.protonmod.next.ui.theme.ClubShape
 
 /** The user's own blocklist: paste rules, import them from a file or from a URL. */
 @Composable
@@ -92,7 +93,7 @@ fun NetShieldCustomFiltersSection(
             modifier = Modifier.fillMaxWidth().heightIn(min = 96.dp),
             label = { Text(stringResource(R.string.netshield_custom_filters_hint)) },
             colors = NetShieldFieldColors(),
-            shape = RoundedCornerShape(12.dp),
+            shape = ClubShape,
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TextButton(
@@ -120,7 +121,7 @@ fun NetShieldCustomFiltersSection(
             singleLine = true,
             label = { Text(stringResource(R.string.netshield_source_url_hint)) },
             colors = NetShieldFieldColors(),
-            shape = RoundedCornerShape(12.dp),
+            shape = ClubShape,
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TextButton(
@@ -274,7 +275,7 @@ private fun CategorySourceDialog(
                     label = { Text(stringResource(R.string.netshield_source_custom_url)) },
                     placeholder = { Text(stringResource(R.string.netshield_source_url_hint)) },
                     colors = NetShieldFieldColors(),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = ClubShape,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 TextButton(onClick = onReset) {
@@ -373,7 +374,7 @@ private fun NetShieldCard(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .liquidGlass(shape = RoundedCornerShape(20.dp), alpha = 0.4f, shadowElevation = 0.dp)
+                .liquidGlass(shape = ClubShape, alpha = 0.4f, shadowElevation = 0.dp)
         ) {
             Column(
                 modifier = Modifier.padding(20.dp),

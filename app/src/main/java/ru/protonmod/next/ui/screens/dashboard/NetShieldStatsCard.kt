@@ -53,6 +53,7 @@ import ru.protonmod.next.netshield.NetShieldStats
 import ru.protonmod.next.ui.theme.ProtonNextTheme
 import ru.protonmod.next.ui.theme.liquidGlass
 import java.util.Locale
+import ru.protonmod.next.ui.theme.ClubShape
 
 @Composable
 fun NetShieldStatsCard(
@@ -140,9 +141,9 @@ fun NetShieldStatsCard(
                 }
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
+                        .clip(ClubShape)
                         .background(accentColors.first.copy(alpha = 0.12f))
-                        .border(1.dp, accentColors.first.copy(alpha = 0.18f), RoundedCornerShape(20.dp))
+                        .border(1.dp, accentColors.first.copy(alpha = 0.18f), ClubShape)
                         .padding(horizontal = 9.dp, vertical = 5.dp),
                     contentAlignment = Alignment.Center,
                 ) {

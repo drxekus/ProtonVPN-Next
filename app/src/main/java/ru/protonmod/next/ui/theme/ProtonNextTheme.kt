@@ -75,6 +75,23 @@ object ProtonPalette {
 
     val Woodsmoke = Color(0xFF17181C)
 
+    // Brand: deep red on a cool near-black, replacing Proton's purple.
+    val CrimsonDarken40 = Color(0xFF6B0410)
+    val CrimsonDarken20 = Color(0xFF8E0516)
+    val Crimson = Color(0xFFB2061C)
+    val CrimsonLighten20 = Color(0xFFE0313F)
+    val CrimsonLighten40 = Color(0xFFF4A6AE)
+
+    // Dark neutrals without the purple tint of the Proton greys.
+    val Ink = Color(0xFF020B12)
+    val InkRaised = Color(0xFF0D161D)
+    val InkCard = Color(0xFF182128)
+    val Graphite = Color(0xFF262E35)
+    val Asphalt = Color(0xFF343B41)
+    val Slate = Color(0xFF555D64)
+    val Pewter = Color(0xFF6E777E)
+    val Fog = Color(0xFFA9B1B7)
+
     val Pomegranate = Color(0xFFCC2D4F)
     val Mauvelous = Color(0xFFF08FA4)
     val Sunglow = Color(0xFFE65200)
@@ -131,11 +148,11 @@ class ProtonColors(
     val shade10: Color,
     val shade0: Color,
 
-    val brandDarken40: Color = ProtonPalette.Chambray,
-    val brandDarken20: Color = ProtonPalette.SanMarino,
-    val brandNorm: Color = ProtonPalette.CornflowerBlue,
-    val brandLighten20: Color = ProtonPalette.Portage,
-    val brandLighten40: Color = ProtonPalette.Perano,
+    val brandDarken40: Color = ProtonPalette.CrimsonDarken40,
+    val brandDarken20: Color = ProtonPalette.CrimsonDarken20,
+    val brandNorm: Color = ProtonPalette.Crimson,
+    val brandLighten20: Color = ProtonPalette.CrimsonLighten20,
+    val brandLighten40: Color = ProtonPalette.CrimsonLighten40,
 
     val textNorm: Color = shade100,
     val textAccent: Color = brandNorm,
@@ -338,11 +355,11 @@ class ProtonColors(
 
 
         private fun baseLight(
-            brandDarken40: Color = ProtonPalette.Chambray,
-            brandDarken20: Color = ProtonPalette.SanMarino,
-            brandNorm: Color = ProtonPalette.CornflowerBlue,
-            brandLighten20: Color = ProtonPalette.Portage,
-            brandLighten40: Color = ProtonPalette.Perano,
+            brandDarken40: Color = ProtonPalette.CrimsonDarken40,
+            brandDarken20: Color = ProtonPalette.CrimsonDarken20,
+            brandNorm: Color = ProtonPalette.Crimson,
+            brandLighten20: Color = ProtonPalette.CrimsonLighten20,
+            brandLighten40: Color = ProtonPalette.CrimsonLighten40,
         ) = ProtonColors(
             isDark = false,
             brandDarken40 = brandDarken40,
@@ -379,11 +396,11 @@ class ProtonColors(
         }
 
         private fun baseDark(
-            brandDarken40: Color = ProtonPalette.Chambray,
-            brandDarken20: Color = ProtonPalette.SanMarino,
-            brandNorm: Color = ProtonPalette.CornflowerBlue,
-            brandLighten20: Color = ProtonPalette.Portage,
-            brandLighten40: Color = ProtonPalette.Perano,
+            brandDarken40: Color = ProtonPalette.CrimsonDarken40,
+            brandDarken20: Color = ProtonPalette.CrimsonDarken20,
+            brandNorm: Color = ProtonPalette.Crimson,
+            brandLighten20: Color = ProtonPalette.CrimsonLighten20,
+            brandLighten40: Color = ProtonPalette.CrimsonLighten40,
         ) = ProtonColors(
             isDark = true,
             brandDarken40 = brandDarken40,
@@ -395,14 +412,14 @@ class ProtonColors(
             notificationWarning = ProtonPalette.TexasRose,
             notificationSuccess = ProtonPalette.PuertoRico,
             shade100 = Color.White,
-            shade80 = ProtonPalette.CadetBlue,
-            shade60 = ProtonPalette.Dolphin,
-            shade50 = ProtonPalette.Smoky,
-            shade40 = ProtonPalette.GunPowder,
-            shade20 = ProtonPalette.BlackCurrant,
-            shade15 = ProtonPalette.Bastille,
-            shade10 = ProtonPalette.BalticSea,
-            shade0 = ProtonPalette.Cinder,
+            shade80 = ProtonPalette.Fog,
+            shade60 = ProtonPalette.Pewter,
+            shade50 = ProtonPalette.Slate,
+            shade40 = ProtonPalette.Asphalt,
+            shade20 = ProtonPalette.Graphite,
+            shade15 = ProtonPalette.InkCard,
+            shade10 = ProtonPalette.InkRaised,
+            shade0 = ProtonPalette.Ink,
             shadowNorm = Color.Black.copy(alpha = 0.8f),
             shadowRaised = Color.Black.copy(alpha = 0.8f),
             shadowLifted = Color.Black.copy(alpha = 0.86f),
@@ -419,15 +436,19 @@ class ProtonColors(
                 backgroundSecondary = it.shade20.copy(alpha = 0.4f), // More transparent for better glass effect
                 backgroundDeep = it.shade0,
                 onInteraction = Color.White,
+                // Inverted text and icons sit on the brand red (buttons, selected tabs, switch
+                // thumbs); the near-black shade0 was unreadable there.
+                textInverted = Color.White,
+                iconInverted = Color.White,
             )
         }
 
         private fun sidebarLight(
-            brandDarken40: Color = ProtonPalette.Chambray,
-            brandDarken20: Color = ProtonPalette.SanMarino,
-            brandNorm: Color = ProtonPalette.CornflowerBlue,
-            brandLighten20: Color = ProtonPalette.Portage,
-            brandLighten40: Color = ProtonPalette.Perano,
+            brandDarken40: Color = ProtonPalette.CrimsonDarken40,
+            brandDarken20: Color = ProtonPalette.CrimsonDarken20,
+            brandNorm: Color = ProtonPalette.Crimson,
+            brandLighten20: Color = ProtonPalette.CrimsonLighten20,
+            brandLighten40: Color = ProtonPalette.CrimsonLighten40,
         ) = baseLight(
             brandDarken40 = brandDarken40,
             brandDarken20 = brandDarken20,
@@ -435,23 +456,23 @@ class ProtonColors(
             brandLighten20 = brandLighten20,
             brandLighten40 = brandLighten40,
         ).copy(
-            backgroundNorm = ProtonPalette.Haiti,
-            interactionWeakNorm = ProtonPalette.Jacarta,
-            interactionWeakPressed = ProtonPalette.Valhalla,
-            separatorNorm = ProtonPalette.Jacarta,
+            backgroundNorm = ProtonPalette.Ink,
+            interactionWeakNorm = ProtonPalette.Graphite,
+            interactionWeakPressed = ProtonPalette.Asphalt,
+            separatorNorm = ProtonPalette.Graphite,
             textNorm = ProtonPalette.White,
-            textWeak = ProtonPalette.CadetBlue,
+            textWeak = ProtonPalette.Fog,
             iconNorm = ProtonPalette.White,
-            iconWeak = ProtonPalette.CadetBlue,
-            interactionPressed = ProtonPalette.SanMarino,
+            iconWeak = ProtonPalette.Fog,
+            interactionPressed = ProtonPalette.CrimsonDarken20,
         )
 
         private fun sidebarDark(
-            brandDarken40: Color = ProtonPalette.Chambray,
-            brandDarken20: Color = ProtonPalette.SanMarino,
-            brandNorm: Color = ProtonPalette.CornflowerBlue,
-            brandLighten20: Color = ProtonPalette.Portage,
-            brandLighten40: Color = ProtonPalette.Perano,
+            brandDarken40: Color = ProtonPalette.CrimsonDarken40,
+            brandDarken20: Color = ProtonPalette.CrimsonDarken20,
+            brandNorm: Color = ProtonPalette.Crimson,
+            brandLighten20: Color = ProtonPalette.CrimsonLighten20,
+            brandLighten40: Color = ProtonPalette.CrimsonLighten40,
         ) = baseDark(
             brandDarken40 = brandDarken40,
             brandDarken20 = brandDarken20,
@@ -459,15 +480,15 @@ class ProtonColors(
             brandLighten20 = brandLighten20,
             brandLighten40 = brandLighten40,
         ).copy(
-            backgroundNorm = ProtonPalette.Cinder,
-            interactionWeakNorm = ProtonPalette.BlackCurrant,
-            interactionWeakPressed = ProtonPalette.GunPowder,
-            separatorNorm = ProtonPalette.BlackCurrant,
+            backgroundNorm = ProtonPalette.Ink,
+            interactionWeakNorm = ProtonPalette.Graphite,
+            interactionWeakPressed = ProtonPalette.Asphalt,
+            separatorNorm = ProtonPalette.Graphite,
             textNorm = ProtonPalette.White,
-            textWeak = ProtonPalette.CadetBlue,
+            textWeak = ProtonPalette.Fog,
             iconNorm = ProtonPalette.White,
-            iconWeak = ProtonPalette.CadetBlue,
-            interactionPressed = ProtonPalette.SanMarino,
+            iconWeak = ProtonPalette.Fog,
+            interactionPressed = ProtonPalette.CrimsonDarken20,
         )
 
         fun fromMaterial3(scheme: ColorScheme, isDark: Boolean): ProtonColors {

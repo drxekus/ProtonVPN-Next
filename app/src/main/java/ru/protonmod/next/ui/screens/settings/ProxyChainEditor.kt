@@ -40,6 +40,7 @@ import ru.protonmod.next.R
 import ru.protonmod.next.ui.icons.ProtonIcons
 import ru.protonmod.next.ui.theme.ProtonNextTheme
 import ru.protonmod.next.vpn.ProxyLinkParser
+import ru.protonmod.next.ui.theme.ClubShape
 
 private const val MAX_PROXY_HOPS = 4
 
@@ -129,7 +130,7 @@ fun ProxyChainEditor(
             onClick = { showAddDialog = true },
             enabled = links.size < MAX_PROXY_HOPS,
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(14.dp)
+            shape = ClubShape
         ) {
             Icon(ProtonIcons.Plus, contentDescription = null)
             Spacer(modifier = Modifier.width(8.dp))
@@ -180,7 +181,7 @@ fun ProxyChainEditor(
                                 info != null -> Text(info.name, color = colors.notificationSuccess)
                             }
                         },
-                        shape = RoundedCornerShape(14.dp)
+                        shape = ClubShape
                     )
                 }
             },
@@ -229,7 +230,7 @@ private fun ProxyTreeNode(
             modifier = Modifier
                 .weight(1f)
                 .padding(vertical = 5.dp),
-            shape = RoundedCornerShape(16.dp),
+            shape = ClubShape,
             color = if (isDragging) colors.brandNorm.copy(alpha = 0.18f)
             else colors.backgroundSecondary.copy(alpha = 0.7f)
         ) {

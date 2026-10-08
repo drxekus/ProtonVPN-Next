@@ -43,6 +43,7 @@ import ru.protonmod.next.R
 import ru.protonmod.next.ui.components.NavigationHeader
 import ru.protonmod.next.ui.icons.ProtonIcons
 import ru.protonmod.next.ui.theme.ProtonNextTheme
+import ru.protonmod.next.ui.theme.ClubShape
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -100,7 +101,7 @@ fun KillSwitchScreen(
                         .fillMaxWidth()
                         .padding(horizontal = 24.dp)
                         .height(56.dp),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = ClubShape,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = colors.brandNorm,
                         contentColor = colors.textInverted
@@ -123,7 +124,7 @@ private fun InstructionCard(
 ) {
     val colors = ProtonNextTheme.colors
     Card(
-        shape = RoundedCornerShape(24.dp),
+        shape = ClubShape,
         colors = CardDefaults.cardColors(
             containerColor = colors.backgroundSecondary.copy(alpha = 0.6f)
         ),

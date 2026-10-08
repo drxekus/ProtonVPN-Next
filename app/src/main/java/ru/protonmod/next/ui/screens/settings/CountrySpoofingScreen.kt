@@ -51,6 +51,7 @@ import ru.protonmod.next.ui.icons.ProtonIcons
 import ru.protonmod.next.ui.theme.ProtonNextTheme
 import ru.protonmod.next.ui.theme.liquidGlass
 import ru.protonmod.next.ui.utils.isTablet
+import ru.protonmod.next.ui.theme.ClubShape
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -91,7 +92,7 @@ fun CountrySpoofingScreen(
                 Box(
                     modifier = contentModifier
                         .padding(horizontal = 16.dp)
-                        .liquidGlass(shape = RoundedCornerShape(20.dp), alpha = 0.4f, shadowElevation = 0.dp)
+                        .liquidGlass(shape = ClubShape, alpha = 0.4f, shadowElevation = 0.dp)
                 ) {
                     Column(modifier = Modifier.padding(vertical = 4.dp)) {
                         // Master Toggle
@@ -132,7 +133,7 @@ fun CountrySpoofingScreen(
                                     Column(
                                         modifier = Modifier
                                             .padding(horizontal = 24.dp, vertical = 8.dp)
-                                            .background(colors.backgroundSecondary.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                                            .background(colors.backgroundSecondary.copy(alpha = 0.3f), ClubShape)
                                             .padding(12.dp)
                                     ) {
                                         Text(
@@ -157,7 +158,7 @@ fun CountrySpoofingScreen(
                                             modifier = Modifier.fillMaxWidth(),
                                             placeholder = { Text(stringResource(R.string.settings_country_spoofing_code_hint), color = colors.textWeak) },
                                             singleLine = true,
-                                            shape = RoundedCornerShape(8.dp),
+                                            shape = ClubShape,
                                             colors = OutlinedTextFieldDefaults.colors(
                                                 focusedBorderColor = colors.brandNorm,
                                                 unfocusedBorderColor = colors.separatorNorm,
@@ -180,7 +181,7 @@ fun CountrySpoofingScreen(
                                                 containerColor = colors.brandNorm,
                                                 contentColor = colors.textInverted
                                             ),
-                                            shape = RoundedCornerShape(8.dp)
+                                            shape = ClubShape
                                         ) {
                                             Text(stringResource(R.string.ota_btn_check))
                                         }

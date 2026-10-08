@@ -59,6 +59,7 @@ import ru.protonmod.next.R
 import ru.protonmod.next.ui.icons.ProtonIcons
 import ru.protonmod.next.ui.theme.ProtonNextTheme
 import ru.protonmod.next.ui.theme.liquidGlass
+import ru.protonmod.next.ui.theme.ClubShape
 
 /**
  * Dashboard statistics card - a direct port of the desktop stats slider.
@@ -77,7 +78,7 @@ fun StatsCard(
 
     Column(
         modifier = modifier
-            .liquidGlass(shape = RoundedCornerShape(24.dp))
+            .liquidGlass(shape = ClubShape)
             .padding(horizontal = 20.dp, vertical = 16.dp)
     ) {
         // Header: slide icon + title, chevrons, eye toggle.
@@ -193,7 +194,7 @@ private fun TrafficSlide(
         if (isConnected && liveSpeed != null) {
             Spacer(modifier = Modifier.weight(1f))
             Surface(
-                shape = RoundedCornerShape(12.dp),
+                shape = ClubShape,
                 color = ProtonNextTheme.colors.notificationSuccess.copy(alpha = 0.12f),
                 modifier = Modifier.fillMaxWidth()
             ) {

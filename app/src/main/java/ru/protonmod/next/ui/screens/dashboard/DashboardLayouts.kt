@@ -49,6 +49,7 @@ import ru.protonmod.next.ui.icons.ProtonIcons
 import ru.protonmod.next.ui.theme.ProtonNextTheme
 import ru.protonmod.next.ui.theme.liquidGlass
 import ru.protonmod.next.ui.utils.CountryUtils
+import ru.protonmod.next.ui.theme.ClubShape
 
 /**
  * Tablet layout - a 1:1 port of the desktop dashboard grid:
@@ -170,7 +171,8 @@ internal fun PhoneDashboardLayout(
                 onChangeQuickConnect = onChangeQuickConnect,
                 vpnState = state.vpnState,
                 connectedServer = state.connectedServer,
-                allServers = state.servers.toImmutableList()
+                allServers = state.servers.toImmutableList(),
+                isRecovering = state.isRecovering
             )
         }
 
@@ -247,7 +249,7 @@ internal fun RecentConnectionsCard(
 
     Column(
         modifier = modifier
-            .liquidGlass(shape = RoundedCornerShape(24.dp))
+            .liquidGlass(shape = ClubShape)
             .padding(20.dp)
     ) {
         Row(
@@ -397,7 +399,7 @@ private fun RecentServerRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(ClubShape)
             .background(if (isActive) colors.brandNorm.copy(alpha = 0.12f) else Color.Transparent)
             .clickable { onClick() }
             .padding(horizontal = 8.dp, vertical = 8.dp),

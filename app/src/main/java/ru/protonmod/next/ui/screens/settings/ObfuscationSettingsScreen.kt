@@ -48,6 +48,7 @@ import ru.protonmod.next.ui.icons.ProtonIcons
 import ru.protonmod.next.ui.theme.ProtonNextTheme
 import ru.protonmod.next.ui.theme.liquidGlass
 import ru.protonmod.next.ui.utils.isTablet
+import ru.protonmod.next.ui.theme.ClubShape
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -264,7 +265,7 @@ fun ObfuscationSettingsScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled = true),
-                                    shape = RoundedCornerShape(16.dp),
+                                    shape = ClubShape,
                                     colors = OutlinedTextFieldDefaults.colors(
                                         focusedBorderColor = colors.brandNorm,
                                         unfocusedBorderColor = colors.shade20,
@@ -402,7 +403,7 @@ fun ObfuscationSettingsScreen(
                                     Box(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .clip(RoundedCornerShape(8.dp))
+                                            .clip(ClubShape)
                                             .background(colors.backgroundNorm)
                                             .padding(12.dp)
                                     ) {
@@ -430,7 +431,7 @@ fun ObfuscationSettingsScreen(
                                         onClick = { showDomainDialog = true },
                                         enabled = !selectedProfile.isReadOnly,
                                         modifier = Modifier.fillMaxWidth(),
-                                        shape = RoundedCornerShape(12.dp),
+                                        shape = ClubShape,
                                         border = BorderStroke(1.dp, colors.brandNorm.copy(alpha = 0.5f))
                                     ) {
                                         Icon(ProtonIcons.Globe, contentDescription = null, modifier = Modifier.size(18.dp), tint = colors.brandNorm)
@@ -686,7 +687,7 @@ fun ObfuscationSettingsScreen(
                                         Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .clip(RoundedCornerShape(8.dp))
+                                                .clip(ClubShape)
                                                 .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f))
                                                 .padding(8.dp),
                                             verticalAlignment = Alignment.CenterVertically
@@ -711,7 +712,7 @@ fun ObfuscationSettingsScreen(
                                             enabled = !selectedProfile.isReadOnly,
                                             modifier = Modifier
                                                 .size(48.dp)
-                                                .background(colors.backgroundNorm, RoundedCornerShape(12.dp))
+                                                .background(colors.backgroundNorm, ClubShape)
                                         ) {
                                             Icon(ProtonIcons.MagicProtonWand, contentDescription = stringResource(R.string.obfuscation_hp_generate), tint = colors.brandNorm)
                                         }
@@ -837,7 +838,7 @@ fun ObfuscationSettingsScreen(
                                         viewModel.saveObfuscationProfile(updatedProfile)
                                     },
                                     modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(12.dp),
+                                    shape = ClubShape,
                                     colors = ButtonDefaults.buttonColors(containerColor = colors.backgroundSecondary)
                                 ) {
                                     Icon(ProtonIcons.ArrowDownToSquare, contentDescription = null, modifier = Modifier.size(18.dp), tint = colors.textNorm)
@@ -969,7 +970,7 @@ private fun ProtectionModeOption(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .clip(ClubShape)
             .background(if (selected) colors.brandNorm.copy(alpha = 0.10f) else colors.backgroundNorm.copy(alpha = 0f))
             .clickable(onClick = onClick)
             .padding(horizontal = 4.dp, vertical = 10.dp),
@@ -1021,7 +1022,7 @@ fun SettingsCard(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .liquidGlass(shape = RoundedCornerShape(20.dp), alpha = 0.4f, shadowElevation = 0.dp)
+            .liquidGlass(shape = ClubShape, alpha = 0.4f, shadowElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -1053,7 +1054,7 @@ fun ObfuscationParamField(
             enabled = isEnabled,
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
+            shape = ClubShape,
             keyboardOptions = KeyboardOptions(
                 keyboardType = if (isNumeric) KeyboardType.Number else KeyboardType.Text
             ),

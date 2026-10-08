@@ -41,6 +41,7 @@ import ru.protonmod.next.ui.components.NavigationHeader
 import ru.protonmod.next.ui.icons.ProtonIcons
 import ru.protonmod.next.ui.theme.ProtonNextTheme
 import ru.protonmod.next.ui.theme.liquidGlass
+import ru.protonmod.next.ui.theme.ClubShape
 
 data class LicenseItem(
     val titleRes: Int,
@@ -119,7 +120,7 @@ fun LicenseCard(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .liquidGlass(shape = RoundedCornerShape(16.dp), alpha = 0.4f, shadowElevation = 0.dp)
+            .liquidGlass(shape = ClubShape, alpha = 0.4f, shadowElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp)

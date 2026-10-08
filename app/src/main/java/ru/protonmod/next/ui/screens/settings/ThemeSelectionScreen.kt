@@ -57,6 +57,7 @@ import ru.protonmod.next.ui.theme.LocalColors
 import ru.protonmod.next.ui.theme.ProtonColors
 import ru.protonmod.next.ui.theme.ProtonNextTheme
 import ru.protonmod.next.ui.theme.liquidGlass
+import ru.protonmod.next.ui.theme.ClubShape
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -136,14 +137,14 @@ fun ThemePreviewCard(
                 .aspectRatio(0.7f)
                 .fillMaxWidth()
                 .liquidGlass(
-                    shape = RoundedCornerShape(16.dp),
+                    shape = ClubShape,
                     alpha = 0.95f,
                     shadowElevation = if (isSelected) 8.dp else 0.dp
                 )
                 .border(
                     width = if (isSelected) 3.dp else 0.dp,
                     color = if (isSelected) colors.brandNorm else Color.Transparent,
-                    shape = RoundedCornerShape(16.dp)
+                    shape = ClubShape
                 )
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
@@ -154,7 +155,7 @@ fun ThemePreviewCard(
                         modifier = Modifier
                             .padding(8.dp)
                             .align(Alignment.TopEnd)
-                            .background(colors.brandNorm, RoundedCornerShape(12.dp))
+                            .background(colors.brandNorm, ClubShape)
                             .padding(4.dp)
                     ) {
                         Icon(
@@ -267,7 +268,7 @@ fun MiniDashboardPreview(
                 // Mini Connection Card
                 Surface(
                     color = colors.backgroundSecondary.copy(alpha = 0.9f),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = ClubShape,
                     border = BorderStroke(1.dp, colors.shade100.copy(alpha = 0.05f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -299,7 +300,7 @@ fun MiniDashboardPreview(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(28.dp)
-                                .background(colors.brandNorm, RoundedCornerShape(8.dp)),
+                                .background(colors.brandNorm, ClubShape),
                             contentAlignment = Alignment.Center
                         ) {
                              Box(

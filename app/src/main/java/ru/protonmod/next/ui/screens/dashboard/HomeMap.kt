@@ -44,6 +44,7 @@ import ru.protonmod.next.utils.toPx
 import ru.protonmod.next.utils.withPadding
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
+import androidx.compose.ui.platform.LocalContext
 
 // --- Constants & Coordinates ---
 
@@ -585,9 +586,12 @@ fun HomeMap(
         border = colors.shade50.toArgb(),
         selected = colors.shade40.toArgb(),
         connecting = colors.shade40.toArgb(),
-        connected = colors.shade40.toArgb(),
+        // The connected country is "captured": dark red with red chevron stripes.
+        connected = colors.brandDarken40.toArgb(),
         borderWidth = 3f,
-        zoomIndependentBorderWidth = true
+        zoomIndependentBorderWidth = true,
+        capturedStripes = colors.brandNorm.toArgb(),
+        stripeWidth = 6f * LocalContext.current.resources.displayMetrics.density,
     )
 
     val pinColorConfig = mapOf(

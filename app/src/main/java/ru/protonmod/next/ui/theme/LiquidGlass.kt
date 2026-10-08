@@ -32,7 +32,7 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun Modifier.liquidGlass(
-    shape: Shape = RoundedCornerShape(24.dp),
+    shape: Shape = ClubShape,
     alpha: Float = 0.4f,
     borderAlpha: Float = 0.1f,
     shadowElevation: Dp = 0.dp
@@ -40,13 +40,9 @@ fun Modifier.liquidGlass(
     val colors = ProtonNextTheme.colors
     val isDark = colors.isDark
     
-    val highlightColor = if (isDark) Color.White else Color.Black
-    
-    val borderBrush = Brush.verticalGradient(
-        colors = listOf(
-            highlightColor.copy(alpha = borderAlpha),
-            Color.Transparent
-        )
+    // A thin solid outline, as on the square panels of the club site.
+    val borderBrush = androidx.compose.ui.graphics.SolidColor(
+        if (isDark) colors.shade40.copy(alpha = 0.9f) else colors.shade40
     )
 
     // Glass background: use backgroundSecondary with the provided alpha to ensure translucency
@@ -67,7 +63,7 @@ fun Modifier.liquidGlass(
         .clip(shape)
         .background(glassBackgroundColor)
         .border(
-            width = 0.8.dp,
+            width = 1.dp,
             brush = borderBrush,
             shape = shape
         )

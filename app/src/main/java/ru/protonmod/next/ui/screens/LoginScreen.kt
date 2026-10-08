@@ -53,6 +53,7 @@ import ru.protonmod.next.ui.components.SmoothOutlinedTextField
 import ru.protonmod.next.ui.icons.ProtonIcons
 import ru.protonmod.next.ui.theme.ProtonNextTheme
 import ru.protonmod.next.ui.utils.isTablet
+import ru.protonmod.next.ui.theme.ClubShape
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -162,7 +163,7 @@ fun LoginScreen(
                                     onValueChange = { totpCode = it },
                                     label = { Text(stringResource(R.string.hint_2fa_code)) },
                                     modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(12.dp),
+                                    shape = ClubShape,
                                     keyboardOptions = KeyboardOptions(
                                         keyboardType = KeyboardType.Number,
                                         imeAction = ImeAction.Done
@@ -190,7 +191,7 @@ fun LoginScreen(
                                         viewModel.submit2FA(state.sessionId, state.tempAccessToken, state.refreshToken, totpCode)
                                     },
                                     modifier = Modifier.fillMaxWidth().height(56.dp),
-                                    shape = RoundedCornerShape(16.dp),
+                                    shape = ClubShape,
                                     colors = ButtonDefaults.buttonColors(containerColor = colors.brandNorm),
                                     enabled = totpCode.isNotBlank() && uiState !is LoginUiState.Loading
                                 ) {
@@ -268,7 +269,7 @@ fun LoginScreen(
                                         onValueChange = { username = it },
                                         label = { Text(stringResource(R.string.hint_username)) },
                                         modifier = Modifier.fillMaxWidth(),
-                                        shape = RoundedCornerShape(12.dp),
+                                        shape = ClubShape,
                                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                                         colors = OutlinedTextFieldDefaults.colors(
                                             focusedBorderColor = colors.brandNorm,
@@ -286,7 +287,7 @@ fun LoginScreen(
                                         onValueChange = { password = it },
                                         label = { Text(stringResource(R.string.hint_password)) },
                                         modifier = Modifier.fillMaxWidth(),
-                                        shape = RoundedCornerShape(12.dp),
+                                        shape = ClubShape,
                                         keyboardOptions = KeyboardOptions(
                                             keyboardType = KeyboardType.Password,
                                             imeAction = ImeAction.Done
@@ -319,7 +320,7 @@ fun LoginScreen(
                                     Button(
                                         onClick = { checkVpnAndLogin() },
                                         modifier = Modifier.fillMaxWidth().height(56.dp),
-                                        shape = RoundedCornerShape(16.dp),
+                                        shape = ClubShape,
                                         colors = ButtonDefaults.buttonColors(containerColor = colors.brandNorm),
                                         enabled = uiState !is LoginUiState.Loading && username.isNotBlank() && password.isNotBlank()
                                     ) {
@@ -335,7 +336,7 @@ fun LoginScreen(
                                     Button(
                                         onClick = { /* TODO: Registration flow */ },
                                         modifier = Modifier.fillMaxWidth().height(56.dp),
-                                        shape = RoundedCornerShape(16.dp),
+                                        shape = ClubShape,
                                         colors = ButtonDefaults.buttonColors(containerColor = colors.interactionNorm, contentColor = colors.textInverted),
                                         enabled = uiState !is LoginUiState.Loading
                                     ) {
@@ -406,7 +407,7 @@ fun LoginScreen(
                                         onValueChange = { sessionJson = it },
                                         label = { Text(stringResource(R.string.hint_session_json)) },
                                         modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
-                                        shape = RoundedCornerShape(12.dp),
+                                        shape = ClubShape,
                                         colors = OutlinedTextFieldDefaults.colors(
                                             focusedBorderColor = colors.brandNorm,
                                             unfocusedBorderColor = colors.shade20,

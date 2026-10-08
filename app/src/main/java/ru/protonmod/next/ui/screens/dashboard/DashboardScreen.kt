@@ -77,6 +77,30 @@ import ru.protonmod.next.ui.utils.isTablet
 import ru.protonmod.next.utils.ProtonLogger
 import ru.protonmod.next.utils.system.SystemUtils
 import ru.protonmod.next.vpn.AmneziaVpnManager
+import ru.protonmod.next.ui.theme.ClubShape
+import ru.protonmod.next.ui.theme.ClubButton
+import ru.protonmod.next.ui.theme.ClubButtonStyle
+import ru.protonmod.next.ui.theme.chevronPattern
+import ru.protonmod.next.ui.theme.clubHeaderTexture
+import androidx.compose.foundation.border
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.keyframes
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.Stroke
+import kotlinx.coroutines.launch
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.geometry.Offset
 
 // --- Extensions for UI Effects matching Original Proton ---
 
@@ -86,74 +110,315 @@ fun Modifier.vpnStatusOverlayBackground(
     isConnecting: Boolean,
     colors: ProtonColors
 ): Modifier {
-    val targetColor = when {
-        isConnected -> colors.notificationSuccess.copy(alpha = 0.4f)
-        isConnecting -> colors.brandNorm.copy(alpha = 0.4f)
-        else -> colors.notificationError.copy(alpha = 0.4f)
-    }
-
-    val gradientColor by animateColorAsState(
-        targetValue = targetColor,
-        animationSpec = tween(durationMillis = 500),
-        label = "Gradient Animation"
+    // The header is the club-style red texture in every state; the state itself is shown on
+    // the dark plate of [VpnStatusTop], where green and red stay readable. A connected tunnel
+    // only adds a faint green wash on top, enough to notice at a glance.
+    val connectedTint by animateFloatAsState(
+        targetValue = if (isConnected) 1f else 0f,
+        animationSpec = tween(durationMillis = 600),
+        label = "headerConnectedTint"
     )
-
-    return this.background(
-        Brush.verticalGradient(
-            colors = listOf(gradientColor, gradientColor.copy(alpha = 0.0F))
-        )
-    )
+    val green = colors.notificationSuccess
+    return this
+        .clubHeaderTexture(red = colors.brandNorm, deep = colors.brandDarken40)
+        .drawBehind {
+            if (connectedTint > 0f) {
+                drawRect(
+                    Brush.verticalGradient(
+                        0f to green.copy(alpha = 0.22f * connectedTint),
+                        0.6f to green.copy(alpha = 0.10f * connectedTint),
+                        1f to Color.Transparent,
+                    )
+                )
+            }
+        }
 }
+
+/** The deeper green of the radar, darker than the "connected" text. */
+private val RadarGreen = Color(0xFF00A651)
+/** Bright phosphor green of the sweep's leading edge and the radar captions. */
+private val RadarPhosphor = Color(0xFF39FF7A)
+/** Alarm red of the "link lost" alert. */
+private val AlertRed = Color(0xFFFF2A2A)
+
+/** Fixed radar contacts as (angle in degrees, distance as a share of the reach). */
+private val RadarBlips = listOf(
+    25f to 0.32f, 70f to 0.55f, 118f to 0.22f, 160f to 0.7f, 205f to 0.45f,
+    250f to 0.62f, 300f to 0.28f, 335f to 0.8f,
+)
+
+private const val RADAR_MS = 3000
+private const val CAPTION_MS = 4200
 
 @Composable
 fun VpnStatusTop(
     isConnected: Boolean,
     isConnecting: Boolean,
     vpnState: AmneziaVpnManager.VpnState,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isRecovering: Boolean = false
 ) {
     val colors = ProtonNextTheme.colors
+    val showsConnected = vpnState == AmneziaVpnManager.VpnState.CONNECTED && !isRecovering
+    val radar = remember { Animatable(1f) }
+    val caption = remember { Animatable(1f) }
+    val flicker = remember { Animatable(1f) }
+    var wasConnected by rememberSaveable { mutableStateOf(showsConnected) }
+    // Red Alert style "unit ready": when the tunnel comes up a radar grid lights up around the
+    // status plate, a phosphor beam sweeps twice and pings contacts, rings spread out, the label
+    // flickers like an old tube and a caption is typed out underneath.
+    LaunchedEffect(showsConnected) {
+        if (showsConnected && !wasConnected) {
+            launch {
+                radar.snapTo(0f)
+                radar.animateTo(1f, tween(durationMillis = RADAR_MS, easing = LinearEasing))
+            }
+            launch {
+                caption.snapTo(0f)
+                caption.animateTo(1f, tween(durationMillis = CAPTION_MS, easing = LinearEasing))
+            }
+            flicker.snapTo(0f)
+            flicker.animateTo(1f, keyframes {
+                durationMillis = 420
+                0.9f at 50
+                0.15f at 110
+                1f at 170
+                0.35f at 240
+                1f at 320
+            })
+        }
+        wasConnected = showsConnected
+    }
+    // While the link is being restored the plate sounds a red alert: a pulsing glow and a
+    // blinking caption, until a handshake answers again.
+    val alarm = rememberInfiniteTransition(label = "redAlert")
+    val alarmPulse by alarm.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(700, easing = LinearEasing), RepeatMode.Reverse),
+        label = "redAlertPulse"
+    )
 
-    Box(modifier = modifier, contentAlignment = Alignment.Center) {
-        AnimatedContent(
-            targetState = vpnState,
-            label = "VpnStatusTopTransition"
-        ) { state ->
-            when (state) {
-                AmneziaVpnManager.VpnState.CONNECTED -> {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_proton_lock_filled),
-                            tint = colors.notificationSuccess,
-                            contentDescription = null,
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            modifier = Modifier
+                .drawBehind {
+                    if (isRecovering) drawRedAlert(alarmPulse)
+                    val p = radar.value
+                    if (p < 1f) drawRadar(p)
+                }
+                .background(colors.shade0.copy(alpha = 0.72f), ClubShape)
+                .border(1.dp, if (isRecovering) AlertRed.copy(alpha = 0.4f + 0.6f * alarmPulse) else colors.shade40, ClubShape)
+                .padding(horizontal = 20.dp, vertical = 10.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            AnimatedContent(
+                // A tunnel that lost its path is not "Connected": show the progress spinner.
+                targetState = if (isRecovering && vpnState == AmneziaVpnManager.VpnState.CONNECTED) {
+                    AmneziaVpnManager.VpnState.VERIFYING
+                } else {
+                    vpnState
+                },
+                label = "VpnStatusTopTransition"
+            ) { state ->
+                when (state) {
+                    AmneziaVpnManager.VpnState.CONNECTED -> {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.graphicsLayer { alpha = flicker.value }
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_proton_lock_filled),
+                                tint = colors.notificationSuccess,
+                                contentDescription = null,
+                                modifier = Modifier.size(32.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = stringResource(R.string.status_connected),
+                                style = MaterialTheme.typography.titleLarge,
+                                color = colors.notificationSuccess,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    AmneziaVpnManager.VpnState.CONNECTING, AmneziaVpnManager.VpnState.VERIFYING -> {
+                        ExpressiveCircularProgressIndicator(
+                            color = if (isRecovering) AlertRed else colors.textNorm,
                             modifier = Modifier.size(32.dp)
                         )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = stringResource(R.string.status_connected),
-                            style = MaterialTheme.typography.titleLarge,
-                            color = colors.notificationSuccess,
-                            fontWeight = FontWeight.Bold
+                    }
+                    else -> {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_proton_lock_open_filled_2),
+                            contentDescription = null,
+                            tint = colors.notificationError,
+                            modifier = Modifier.size(32.dp)
                         )
                     }
                 }
-                AmneziaVpnManager.VpnState.CONNECTING, AmneziaVpnManager.VpnState.VERIFYING -> {
-                    ExpressiveCircularProgressIndicator(
-                        color = colors.brandNorm,
-                        modifier = Modifier.size(32.dp)
-                    )
-                }
-                else -> {
-                    Icon(
-                        painter = painterResource(id = R.drawable.ic_proton_lock_open_filled_2),
-                        contentDescription = null,
-                        tint = colors.notificationError,
-                        modifier = Modifier.size(32.dp)
-                    )
-                }
             }
         }
+
+        // Terminal captions under the plate, in the style of a command console.
+        val captionText = when {
+            isRecovering -> stringResource(R.string.radar_link_lost)
+            caption.value < 1f -> stringResource(R.string.radar_link_established)
+            else -> null
+        }
+        if (captionText != null) {
+            val shown = if (isRecovering) {
+                captionText
+            } else {
+                // Typed out in the first 30 %, held, then faded in the last 20 %.
+                val typed = (caption.value / 0.3f).coerceAtMost(1f)
+                captionText.take((captionText.length * typed).toInt())
+            }
+            val captionAlpha = when {
+                isRecovering -> if (alarmPulse > 0.5f) 1f else 0.25f
+                caption.value > 0.8f -> (1f - caption.value) / 0.2f
+                else -> 1f
+            }
+            val cursor = if (!isRecovering && caption.value < 0.8f && (caption.value * 20).toInt() % 2 == 0) "_" else " "
+            Text(
+                text = "> " + shown.uppercase() + if (isRecovering) "" else cursor,
+                color = (if (isRecovering) AlertRed else RadarPhosphor).copy(alpha = captionAlpha),
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp,
+                letterSpacing = 2.sp,
+                modifier = Modifier
+                    .padding(top = 8.dp)
+                    .background(colors.shade0.copy(alpha = 0.55f * captionAlpha))
+                    .padding(horizontal = 8.dp, vertical = 2.dp)
+            )
+        }
     }
+}
+
+/** Radar effect around the plate for progress [p] from 0 to 1. */
+private fun DrawScope.drawRadar(p: Float) {
+    val c = center
+    val reach = 460.dp.toPx()
+    // The grid lights up, holds and dims away.
+    val grid = when {
+        p < 0.1f -> p / 0.1f
+        p > 0.75f -> (1f - p) / 0.25f
+        else -> 1f
+    }
+    val thin = 1.dp.toPx()
+    val ringStep = 56.dp.toPx()
+    var r = ringStep
+    while (r <= reach) {
+        drawCircle(RadarGreen.copy(alpha = 0.30f * grid), radius = r, center = c, style = Stroke(width = thin))
+        r += ringStep
+    }
+    // Crosshair and the diagonals.
+    for (angle in listOf(0f, 45f, 90f, 135f)) {
+        val rad = Math.toRadians(angle.toDouble())
+        val dx = (kotlin.math.cos(rad) * reach).toFloat()
+        val dy = (kotlin.math.sin(rad) * reach).toFloat()
+        val alpha = if (angle % 90f == 0f) 0.35f else 0.18f
+        drawLine(RadarGreen.copy(alpha = alpha * grid), Offset(c.x - dx, c.y - dy), Offset(c.x + dx, c.y + dy), strokeWidth = thin)
+    }
+    // Bearing ticks on the outer ring, a long one every 30 degrees.
+    val outer = reach - ringStep / 2f
+    for (deg in 0 until 360 step 10) {
+        val rad = Math.toRadians(deg.toDouble())
+        val len = if (deg % 30 == 0) 14.dp.toPx() else 6.dp.toPx()
+        val cos = kotlin.math.cos(rad).toFloat()
+        val sin = kotlin.math.sin(rad).toFloat()
+        drawLine(
+            RadarGreen.copy(alpha = 0.5f * grid),
+            Offset(c.x + cos * outer, c.y + sin * outer),
+            Offset(c.x + cos * (outer - len), c.y + sin * (outer - len)),
+            strokeWidth = thin * 1.5f,
+        )
+    }
+
+    // Sweep: two turns. The gradient's bright edge sits at 90 degrees before rotation.
+    val turn = 720f * p
+    val beam = 1f - (p - 0.8f).coerceAtLeast(0f) / 0.2f
+    rotate(degrees = turn, pivot = c) {
+        drawCircle(
+            brush = Brush.sweepGradient(
+                0f to Color.Transparent,
+                0.12f to RadarGreen.copy(alpha = 0.10f * beam),
+                0.24f to RadarGreen.copy(alpha = 0.55f * beam),
+                0.25f to RadarPhosphor.copy(alpha = 0.85f * beam),
+                0.2501f to Color.Transparent,
+                1f to Color.Transparent,
+                center = c,
+            ),
+            radius = reach,
+            center = c,
+        )
+    }
+    val edge = Math.toRadians((turn + 90f).toDouble())
+    drawLine(
+        RadarPhosphor.copy(alpha = beam),
+        c,
+        Offset(c.x + (kotlin.math.cos(edge) * reach).toFloat(), c.y + (kotlin.math.sin(edge) * reach).toFloat()),
+        strokeWidth = 2.5.dp.toPx(),
+    )
+
+    // Contacts flare up when the beam passes over them and fade until the next pass.
+    val edgeTotal = turn + 90f
+    for ((angle, share) in RadarBlips) {
+        if (edgeTotal < angle) continue
+        val since = (edgeTotal - angle) % 360f
+        val glow = kotlin.math.exp(-since / 110f) * beam
+        if (glow < 0.02f) continue
+        val rad = Math.toRadians(angle.toDouble())
+        val pos = Offset(
+            c.x + (kotlin.math.cos(rad) * reach * share).toFloat(),
+            c.y + (kotlin.math.sin(rad) * reach * share).toFloat(),
+        )
+        drawCircle(RadarPhosphor.copy(alpha = 0.35f * glow), radius = 9.dp.toPx(), center = pos)
+        drawCircle(RadarPhosphor.copy(alpha = glow), radius = 3.5.dp.toPx(), center = pos)
+    }
+
+    // Three rings spreading out, one after another.
+    for (k in 0 until 3) {
+        val local = ((p - k * 0.14f) / 0.6f).coerceIn(0f, 1f)
+        if (local <= 0f || local >= 1f) continue
+        drawCircle(
+            color = RadarGreen.copy(alpha = 0.8f * (1f - local)),
+            radius = size.minDimension / 2f + reach * local,
+            center = c,
+            style = Stroke(width = 2.dp.toPx() + 6.dp.toPx() * (1f - local)),
+        )
+    }
+}
+
+/** Pulsing red alarm glow around the plate while the link is being restored. */
+private fun DrawScope.drawRedAlert(pulse: Float) {
+    val c = center
+    val radius = size.maxDimension * (0.9f + 0.35f * pulse)
+    drawCircle(
+        brush = Brush.radialGradient(
+            0f to AlertRed.copy(alpha = 0.45f * pulse),
+            0.6f to AlertRed.copy(alpha = 0.15f * pulse),
+            1f to Color.Transparent,
+            center = c,
+            radius = radius,
+        ),
+        radius = radius,
+        center = c,
+    )
+    // Hazard brackets at the plate corners.
+    val arm = 14.dp.toPx()
+    val gap = 6.dp.toPx()
+    val w = 3.dp.toPx()
+    val color = AlertRed.copy(alpha = 0.5f + 0.5f * pulse)
+    val l = -gap
+    val t = -gap
+    val r = size.width + gap
+    val b = size.height + gap
+    drawLine(color, Offset(l, t), Offset(l + arm, t), w); drawLine(color, Offset(l, t), Offset(l, t + arm), w)
+    drawLine(color, Offset(r, t), Offset(r - arm, t), w); drawLine(color, Offset(r, t), Offset(r, t + arm), w)
+    drawLine(color, Offset(l, b), Offset(l + arm, b), w); drawLine(color, Offset(l, b), Offset(l, b - arm), w)
+    drawLine(color, Offset(r, b), Offset(r - arm, b), w); drawLine(color, Offset(r, b), Offset(r, b - arm), w)
 }
 
 // --- Masked Location Text Components ---
@@ -301,9 +566,9 @@ private fun LocationTextElement(
                 1.dp,
                 Brush.verticalGradient(listOf(colors.shade100.copy(alpha = 0.08f), colors.shade100.copy(alpha = 0.02f)))
             ),
-            shape = RoundedCornerShape(12.dp),
+            shape = ClubShape,
             modifier = Modifier
-                .clip(RoundedCornerShape(12.dp))
+                .clip(ClubShape)
                 .clickable(onClick = onClick) // Makes the entire IP block clickable to toggle privacy mode
         ) {
             val unknown = stringResource(R.string.unknown)
@@ -420,8 +685,9 @@ fun DashboardScreen(
                 .padding(paddingValues)
         ) {
             val successState = uiState as? DashboardUiState.Success
-            val isConnected = successState?.isConnected == true
-            val isConnecting = successState?.isConnecting == true
+            val isRecovering = successState?.isRecovering == true
+            val isConnected = successState?.isConnected == true && !isRecovering
+            val isConnecting = successState?.isConnecting == true || isRecovering
 
             // Background gradient decoration (immersive)
             Box(
@@ -462,7 +728,8 @@ fun DashboardScreen(
                 Spacer(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(250.dp)
+                        // Ends above the map's focus point, so the connected country stays clear.
+                        .height(190.dp)
                         .align(Alignment.TopCenter)
                         .vpnStatusOverlayBackground(isConnected, isConnecting, colors)
                 )
@@ -477,7 +744,8 @@ fun DashboardScreen(
                     VpnStatusTop(
                         isConnected = isConnected,
                         isConnecting = isConnecting,
-                        vpnState = successState?.vpnState ?: AmneziaVpnManager.VpnState.DISCONNECTED
+                        vpnState = successState?.vpnState ?: AmneziaVpnManager.VpnState.DISCONNECTED,
+                        isRecovering = isRecovering
                     )
                 }
             }
@@ -684,7 +952,7 @@ fun CertificateBanner(
 
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = ClubShape,
         color = backgroundColor
     ) {
         Row(
@@ -742,7 +1010,7 @@ private fun StatCard(
     Box(
         modifier = modifier
             .liquidGlass(
-                shape = RoundedCornerShape(24.dp),
+                shape = ClubShape,
                 alpha = 0.4f,
                 shadowElevation = 0.dp
             )
@@ -790,7 +1058,8 @@ fun ConnectionStatusCard(
     modifier: Modifier = Modifier,
     vpnState: AmneziaVpnManager.VpnState = AmneziaVpnManager.VpnState.DISCONNECTED,
     connectedServer: LogicalServer? = null,
-    allServers: ImmutableList<LogicalServer> = kotlinx.collections.immutable.persistentListOf()
+    allServers: ImmutableList<LogicalServer> = kotlinx.collections.immutable.persistentListOf(),
+    isRecovering: Boolean = false
 ) {
     val colors = ProtonNextTheme.colors
     val context = LocalContext.current
@@ -802,10 +1071,11 @@ fun ConnectionStatusCard(
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
             .liquidGlass(
-                shape = RoundedCornerShape(32.dp),
+                shape = ClubShape,
                 alpha = if (isConnected) 0.2f else 0.4f,
                 shadowElevation = 0.dp
             )
+            .chevronPattern(colors.brandNorm, alpha = if (isConnected) 0.10f else 0.16f)
     ) {
         Column(
             modifier = Modifier
@@ -814,15 +1084,19 @@ fun ConnectionStatusCard(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = when (vpnState) {
+                    text = when {
+                        isRecovering && vpnState != AmneziaVpnManager.VpnState.DISCONNECTED &&
+                            vpnState != AmneziaVpnManager.VpnState.DISCONNECTING -> stringResource(R.string.status_recovering)
+                        else -> when (vpnState) {
                         AmneziaVpnManager.VpnState.CONNECTED -> stringResource(R.string.status_connected)
                         AmneziaVpnManager.VpnState.CONNECTING -> stringResource(R.string.status_connecting)
                         AmneziaVpnManager.VpnState.VERIFYING -> stringResource(R.string.status_verifying)
                         AmneziaVpnManager.VpnState.DISCONNECTING -> stringResource(R.string.status_disconnecting)
                         else -> stringResource(R.string.status_not_connected)
+                        }
                     },
                     style = MaterialTheme.typography.labelLarge,
-                    color = if (isConnected) colors.notificationSuccess else contentColor.copy(alpha = 0.7f),
+                    color = if (isConnected && !isRecovering) colors.notificationSuccess else contentColor.copy(alpha = 0.7f),
                     fontWeight = FontWeight.Bold
                 )
 
@@ -854,7 +1128,7 @@ fun ConnectionStatusCard(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
+                    .clip(ClubShape)
                     .clickable(enabled = !isConnecting) { onChangeQuickConnect() }
                     .padding(vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -871,7 +1145,7 @@ fun ConnectionStatusCard(
                         Box(
                             modifier = Modifier
                                 .size(48.dp, 32.dp)
-                                .clip(RoundedCornerShape(8.dp))
+                                .clip(ClubShape)
                                 .background(colors.backgroundNorm),
                             contentAlignment = Alignment.Center
                         ) {
@@ -907,7 +1181,7 @@ fun ConnectionStatusCard(
                         Box(
                             modifier = Modifier
                                 .size(48.dp, 32.dp)
-                                .clip(RoundedCornerShape(8.dp))
+                                .clip(ClubShape)
                                 .background(colors.backgroundNorm),
                             contentAlignment = Alignment.Center
                         ) {
@@ -986,51 +1260,32 @@ fun ConnectionStatusCard(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 if (isConnected) {
-                    OutlinedButton(
+                    ClubButton(
+                        text = stringResource(R.string.btn_pause),
                         onClick = onPause,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(58.dp),
-                        shape = RoundedCornerShape(18.dp),
-                        border = BorderStroke(1.dp, colors.shade20)
-                    ) {
-                        Text(
-                            text = stringResource(R.string.btn_pause),
-                            style = MaterialTheme.typography.titleMedium,
-                            color = colors.textNorm
-                        )
-                    }
+                        style = ClubButtonStyle.OUTLINED,
+                        modifier = Modifier.weight(1f),
+                        height = 58.dp,
+                    )
                 }
 
                 val canDisconnect = isConnected || isConnecting
-                Button(
+                ClubButton(
+                    text = if (canDisconnect) stringResource(R.string.btn_disconnect) else stringResource(R.string.btn_quick_connect),
                     onClick = onToggleConnection,
-                    modifier = Modifier
-                        .weight(if (canDisconnect) 2f else 1f)
-                        .height(58.dp),
-                    shape = RoundedCornerShape(18.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (canDisconnect) colors.shade20 else colors.brandNorm,
-                        contentColor = if (canDisconnect) colors.textNorm else colors.textInverted
-                    ),
-                    elevation = ButtonDefaults.buttonElevation(
-                        defaultElevation = if (canDisconnect) 0.dp else 4.dp,
-                        pressedElevation = 2.dp
-                    )
-                ) {
-                    if (isConnecting) {
-                        ExpressiveCircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            color = colors.textNorm
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                    }
-                    Text(
-                        text = if (canDisconnect) stringResource(R.string.btn_disconnect) else stringResource(R.string.btn_quick_connect),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+                    style = if (canDisconnect) ClubButtonStyle.OUTLINED else ClubButtonStyle.FILLED,
+                    modifier = Modifier.weight(if (canDisconnect) 2f else 1f),
+                    height = 58.dp,
+                    leading = if (isConnecting) {
+                        {
+                            ExpressiveCircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                color = colors.textNorm
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                        }
+                    } else null,
+                )
             }
         }
     }
@@ -1053,7 +1308,7 @@ fun ConnectionWarningBanner(
 
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = ClubShape,
         color = colors.notificationWarning.copy(alpha = 0.1f)
     ) {
         Row(
@@ -1093,7 +1348,7 @@ fun BatteryOptimizationBanner(
 
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = ClubShape,
         color = colors.notificationWarning.copy(alpha = 0.1f)
     ) {
         Row(
@@ -1156,7 +1411,7 @@ fun PauseBanner(
 
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
+            shape = ClubShape,
             color = colors.brandNorm.copy(alpha = 0.1f)
         ) {
             Row(
@@ -1213,7 +1468,7 @@ fun PauseDialog(
                             onClick = { onPause(minutes * 60 * 1000L) },
                             modifier = Modifier.fillMaxWidth(),
                             colors = ButtonDefaults.buttonColors(containerColor = colors.backgroundSecondary),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = ClubShape
                         ) {
                             Text(stringResource(R.string.pause_option, minutes), color = colors.textNorm)
                         }
@@ -1221,7 +1476,7 @@ fun PauseDialog(
                     OutlinedButton(
                         onClick = { showCustom = true },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = ClubShape,
                         border = BorderStroke(1.dp, colors.shade20)
                     ) {
                         Icon(ProtonIcons.ClockRotateLeft, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -1283,7 +1538,7 @@ private fun CustomPauseContent(
                 readOnly = true,
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                 modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
-                shape = RoundedCornerShape(12.dp),
+                shape = ClubShape,
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = colors.brandNorm,
                     unfocusedBorderColor = colors.shade20
@@ -1319,7 +1574,7 @@ private fun CustomPauseContent(
             },
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = colors.brandNorm),
-            shape = RoundedCornerShape(12.dp),
+            shape = ClubShape,
             enabled = timeInput.isNotBlank()
         ) {
             Text(stringResource(R.string.btn_start_pause))

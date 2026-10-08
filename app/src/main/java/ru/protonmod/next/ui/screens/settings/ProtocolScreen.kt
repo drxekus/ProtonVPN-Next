@@ -42,6 +42,7 @@ import ru.protonmod.next.ui.icons.ProtonIcons
 import ru.protonmod.next.ui.theme.ProtonNextTheme
 import ru.protonmod.next.ui.theme.liquidGlass
 import ru.protonmod.next.ui.utils.isTablet
+import ru.protonmod.next.ui.theme.ClubShape
 
 /**
  * Screen for selecting the VPN Protocol.
@@ -90,7 +91,7 @@ fun ProtocolScreen(
                     modifier = contentModifier
                         .padding(horizontal = 16.dp)
                         .liquidGlass(
-                            shape = RoundedCornerShape(20.dp),
+                            shape = ClubShape,
                             alpha = 0.4f,
                             shadowElevation = 0.dp
                         )

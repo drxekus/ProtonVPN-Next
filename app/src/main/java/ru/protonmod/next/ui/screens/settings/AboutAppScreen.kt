@@ -46,6 +46,7 @@ import ru.protonmod.next.ui.components.NavigationHeader
 import ru.protonmod.next.ui.icons.ProtonIcons
 import ru.protonmod.next.ui.theme.ProtonNextTheme
 import ru.protonmod.next.ui.theme.liquidGlass
+import ru.protonmod.next.ui.theme.ClubShape
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -156,7 +157,7 @@ fun AboutAppScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .liquidGlass(
-                                    shape = RoundedCornerShape(20.dp),
+                                    shape = ClubShape,
                                     alpha = 0.4f,
                                     shadowElevation = 0.dp
                                 )
@@ -202,7 +203,7 @@ fun AboutLinkCard(
     val colors = ProtonNextTheme.colors
     Box(
         modifier = modifier
-            .liquidGlass(shape = RoundedCornerShape(20.dp), alpha = 0.4f, shadowElevation = 0.dp)
+            .liquidGlass(shape = ClubShape, alpha = 0.4f, shadowElevation = 0.dp)
             .clickable(onClick = onClick)
     ) {
         Column(

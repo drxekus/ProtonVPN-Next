@@ -49,6 +49,7 @@ import ru.protonmod.next.ui.icons.ProtonIcons
 import ru.protonmod.next.ui.theme.ProtonNextTheme
 import ru.protonmod.next.ui.theme.liquidGlass
 import ru.protonmod.next.ui.utils.isTablet
+import ru.protonmod.next.ui.theme.ClubShape
 
 @Composable
 fun ConnectionVerificationSettingsScreen(
@@ -192,7 +193,7 @@ private fun SettingsSection(
         )
         Column(
             Modifier.fillMaxWidth().liquidGlass(
-                shape = RoundedCornerShape(20.dp),
+                shape = ClubShape,
                 alpha = 0.4f,
                 shadowElevation = 0.dp,
             ).padding(vertical = 4.dp),
@@ -258,7 +259,7 @@ private fun HandshakeTimeoutRow(seconds: Int, onChange: (Int) -> Unit) {
             )
             Surface(
                 color = colors.brandNorm.copy(alpha = 0.14f),
-                shape = RoundedCornerShape(10.dp),
+                shape = ClubShape,
             ) {
                 Text(
                     stringResource(R.string.verification_handshake_timeout_value, seconds),

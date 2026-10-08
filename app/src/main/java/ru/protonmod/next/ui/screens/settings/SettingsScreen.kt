@@ -59,6 +59,7 @@ import ru.protonmod.next.ui.widget.VpnWidgetProvider
 import androidx.annotation.DrawableRes
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.Color
+import ru.protonmod.next.ui.theme.ClubShape
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -770,7 +771,7 @@ fun TamperSettingsBanner(
         modifier = modifier
             .fillMaxWidth()
             .clickable { onShowDownloads() },
-        shape = RoundedCornerShape(12.dp),
+        shape = ClubShape,
         color = colors.notificationError.copy(alpha = 0.1f),
         border = BorderStroke(1.dp, colors.notificationError.copy(alpha = 0.5f))
     ) {
@@ -820,7 +821,7 @@ fun FeatureTile(
         modifier = modifier
             .aspectRatio(1f)
             .liquidGlass(
-                shape = RoundedCornerShape(16.dp),
+                shape = ClubShape,
                 alpha = if (isActive) 0.3f else 0.4f,
                 shadowElevation = 0.dp
             )

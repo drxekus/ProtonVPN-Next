@@ -46,6 +46,7 @@ import ru.protonmod.next.ui.icons.ProtonIcons
 import ru.protonmod.next.ui.theme.ProtonNextTheme
 import ru.protonmod.next.ui.theme.liquidGlass
 import ru.protonmod.next.ui.utils.isTablet
+import ru.protonmod.next.ui.theme.ClubShape
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -95,7 +96,7 @@ fun DnsSettingsScreen(
                     Box(
                         modifier = contentModifier
                             .padding(horizontal = 16.dp)
-                            .liquidGlass(shape = RoundedCornerShape(20.dp), alpha = 0.4f, shadowElevation = 0.dp)
+                            .liquidGlass(shape = ClubShape, alpha = 0.4f, shadowElevation = 0.dp)
                     ) {
                         Column(modifier = Modifier.padding(vertical = 4.dp)) {
                             // Section Title
@@ -150,7 +151,7 @@ fun DnsSettingsScreen(
                     Box(
                         modifier = contentModifier
                             .padding(horizontal = 16.dp)
-                            .liquidGlass(shape = RoundedCornerShape(20.dp), alpha = 0.4f, shadowElevation = 0.dp)
+                            .liquidGlass(shape = ClubShape, alpha = 0.4f, shadowElevation = 0.dp)
                     ) {
                         Column(modifier = Modifier.padding(vertical = 4.dp)) {
                             Row(
@@ -203,7 +204,7 @@ fun DnsSettingsScreen(
                     Box(
                         modifier = contentModifier
                             .padding(horizontal = 16.dp)
-                            .liquidGlass(shape = RoundedCornerShape(20.dp), alpha = 0.4f, shadowElevation = 0.dp)
+                            .liquidGlass(shape = ClubShape, alpha = 0.4f, shadowElevation = 0.dp)
                     ) {
                         Column(modifier = Modifier.padding(vertical = 4.dp)) {
                             // Section Title
@@ -271,7 +272,7 @@ fun DnsSettingsScreen(
                                 Column(
                                     modifier = Modifier
                                         .padding(horizontal = 24.dp, vertical = 8.dp)
-                                        .background(colors.backgroundSecondary.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                                        .background(colors.backgroundSecondary.copy(alpha = 0.3f), ClubShape)
                                         .padding(12.dp)
                                 ) {
                                     SmoothOutlinedTextField(
@@ -288,7 +289,7 @@ fun DnsSettingsScreen(
                                         },
                                         singleLine = true,
                                         isError = uiState.customDnsRejected,
-                                        shape = RoundedCornerShape(8.dp),
+                                        shape = ClubShape,
                                         colors = OutlinedTextFieldDefaults.colors(
                                             focusedBorderColor = colors.brandNorm,
                                             unfocusedBorderColor = colors.separatorNorm,
@@ -343,7 +344,7 @@ fun DnsSettingsScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(56.dp),
-                            shape = RoundedCornerShape(16.dp),
+                            shape = ClubShape,
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = colors.brandNorm,
                                 disabledContainerColor = colors.brandNorm.copy(alpha = 0.5f)

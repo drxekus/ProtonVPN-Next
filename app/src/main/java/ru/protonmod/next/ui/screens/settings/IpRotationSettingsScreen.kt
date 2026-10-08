@@ -39,6 +39,7 @@ import ru.protonmod.next.ui.icons.ProtonIcons
 import ru.protonmod.next.ui.theme.ProtonNextTheme
 import ru.protonmod.next.ui.theme.liquidGlass
 import ru.protonmod.next.ui.utils.isTablet
+import ru.protonmod.next.ui.theme.ClubShape
 
 private val rotationIntervals = listOf(5, 15, 30, 60)
 
@@ -169,7 +170,7 @@ private fun RotationSection(title: String, modifier: Modifier = Modifier, conten
     Column(modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(title.uppercase(), style = MaterialTheme.typography.labelMedium, color = colors.textWeak, modifier = Modifier.padding(start = 8.dp))
         Column(
-            Modifier.fillMaxWidth().liquidGlass(RoundedCornerShape(20.dp), alpha = 0.4f, shadowElevation = 0.dp)
+            Modifier.fillMaxWidth().liquidGlass(ClubShape, alpha = 0.4f, shadowElevation = 0.dp)
                 .padding(vertical = 4.dp),
             content = content,
         )

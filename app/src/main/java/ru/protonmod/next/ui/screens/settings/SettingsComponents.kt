@@ -50,6 +50,11 @@ import ru.protonmod.next.R
 import ru.protonmod.next.ui.icons.ProtonIcons
 import ru.protonmod.next.ui.theme.ProtonNextTheme
 import ru.protonmod.next.ui.theme.liquidGlass
+import ru.protonmod.next.ui.theme.ClubShape
+import ru.protonmod.next.ui.theme.ClubSectionTitle
+import ru.protonmod.next.ui.theme.clubPressHighlight
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.runtime.remember
 
 @Composable
 fun SettingsCategory(
@@ -60,12 +65,10 @@ fun SettingsCategory(
     val colors = ProtonNextTheme.colors
     Column(modifier = modifier) {
         if (title.isNotEmpty()) {
-            Text(
+            ClubSectionTitle(
                 text = title,
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                color = colors.textNorm,
                 modifier = Modifier
-                    .padding(start = 12.dp, top = 24.dp, bottom = 8.dp)
+                    .padding(start = 4.dp, top = 28.dp, bottom = 12.dp)
                     .fillMaxWidth()
             )
         } else {
@@ -75,7 +78,7 @@ fun SettingsCategory(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .liquidGlass(shape = RoundedCornerShape(20.dp), alpha = 0.4f, shadowElevation = 0.dp)
+                .liquidGlass(shape = ClubShape, alpha = 0.4f, shadowElevation = 0.dp)
         ) {
             Column(modifier = Modifier.padding(vertical = 4.dp)) {
                 content()
@@ -100,14 +103,19 @@ fun SettingRowWithIcon(
     trailingContent: (@Composable () -> Unit)? = null
 ) {
     val colors = ProtonNextTheme.colors
+    val interaction = remember { MutableInteractionSource() }
     var baseModifier = modifier.fillMaxWidth()
 
     // Pass the enabled state to the clickable modifier
     if (onClick != null) {
-        baseModifier = baseModifier.clickable(
-            enabled = enabled,
-            onClick = onClick
-        )
+        baseModifier = baseModifier
+            .clubPressHighlight(interaction)
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                enabled = enabled,
+                onClick = onClick
+            )
     }
 
     // Apply visual opacity when disabled
@@ -124,7 +132,7 @@ fun SettingRowWithIcon(
                 modifier = Modifier
                     .padding(end = 16.dp)
                     .size(36.dp)
-                    .clip(CircleShape)
+                    .clip(ClubShape)
                     .background(colors.brandNorm.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center
             ) {
@@ -308,7 +316,7 @@ fun InfoCard(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .liquidGlass(shape = RoundedCornerShape(20.dp), alpha = 0.3f, shadowElevation = 0.dp)
+            .liquidGlass(shape = ClubShape, alpha = 0.3f, shadowElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier.padding(16.dp),

@@ -83,6 +83,7 @@ import ru.protonmod.next.ui.theme.ProtonNextTheme
 import ru.protonmod.next.ui.theme.liquidGlass
 import ru.protonmod.next.ui.utils.CountryUtils
 import ru.protonmod.next.vpn.AmneziaVpnManager
+import ru.protonmod.next.ui.theme.ClubShape
 
 /** Tablet-only, Compose-native 1:1 port of the Desktop DashboardScreen. */
 @Composable
@@ -234,7 +235,7 @@ private fun DesktopConnectionCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .liquidGlass(shape = RoundedCornerShape(24.dp))
+            .liquidGlass(shape = ClubShape)
             .padding(20.dp)
     ) {
         Text(
@@ -250,18 +251,18 @@ private fun DesktopConnectionCard(
                 .fillMaxWidth()
                 .clickable(onClick = onChangeQuickConnect)
                 .padding(top = 12.dp, bottom = 16.dp)
-                .clip(RoundedCornerShape(16.dp))
+                .clip(ClubShape)
                 .background(Color.White.copy(alpha = 0.03f))
-                .border(1.dp, Color.White.copy(alpha = 0.05f), RoundedCornerShape(16.dp))
+                .border(1.dp, Color.White.copy(alpha = 0.05f), ClubShape)
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
                     .size(40.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(ClubShape)
                     .background((if (state.isConnected) colors.notificationSuccess else colors.brandNorm).copy(alpha = 0.10f))
-                    .border(1.dp, Color.White.copy(alpha = 0.05f), RoundedCornerShape(12.dp)),
+                    .border(1.dp, Color.White.copy(alpha = 0.05f), ClubShape),
                 contentAlignment = Alignment.Center
             ) {
                 val flag = flagCode?.let { CountryUtils.getFlagResource(context, it) } ?: 0
@@ -332,12 +333,12 @@ private fun DesktopActionButton(
             .fillMaxWidth()
             .height(54.dp)
             .graphicsLayer { scaleX = scale; scaleY = scale }
-            .clip(RoundedCornerShape(16.dp))
+            .clip(ClubShape)
             .background(
                 if (connectedOrConnecting) Brush.linearGradient(listOf(Color.White.copy(alpha = 0.05f), Color.White.copy(alpha = 0.05f)))
-                else Brush.horizontalGradient(listOf(colors.brandNorm, Color(0xFF8B5CF6)))
+                else Brush.horizontalGradient(listOf(colors.brandNorm, colors.brandLighten20))
             )
-            .then(if (connectedOrConnecting) Modifier.border(1.dp, colors.notificationError.copy(alpha = 0.20f), RoundedCornerShape(16.dp)) else Modifier)
+            .then(if (connectedOrConnecting) Modifier.border(1.dp, colors.notificationError.copy(alpha = 0.20f), ClubShape) else Modifier)
             .clickable(interactionSource = interaction, indication = null, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -370,8 +371,8 @@ private fun DesktopMapPanel(
     val colors = ProtonNextTheme.colors
     Box(
         modifier = modifier
-            .liquidGlass(shape = RoundedCornerShape(24.dp))
-            .clip(RoundedCornerShape(24.dp))
+            .liquidGlass(shape = ClubShape)
+            .clip(ClubShape)
     ) {
         HomeMap(
             allServers = state.servers.toImmutableList(),
@@ -428,7 +429,9 @@ private fun DesktopMapPanel(
 @Composable
 private fun DesktopStatusPill(state: DashboardUiState.Success, modifier: Modifier = Modifier) {
     val colors = ProtonNextTheme.colors
-    val (icon, tint, label) = when (state.vpnState) {
+    val (icon, tint, label) = if (state.isRecovering && state.vpnState == AmneziaVpnManager.VpnState.CONNECTED) {
+        Triple(R.drawable.ic_proton_lock_open_filled_2, colors.brandNorm, stringResource(R.string.status_recovering))
+    } else when (state.vpnState) {
         AmneziaVpnManager.VpnState.CONNECTED -> Triple(R.drawable.ic_proton_lock_filled, colors.notificationSuccess, stringResource(R.string.dashboard_protected))
         AmneziaVpnManager.VpnState.CONNECTING, AmneziaVpnManager.VpnState.VERIFYING -> Triple(R.drawable.ic_proton_lock_open_filled_2, colors.brandNorm, stringResource(R.string.dashboard_connecting))
         AmneziaVpnManager.VpnState.DISCONNECTING -> Triple(R.drawable.ic_proton_lock_open_filled_2, colors.brandNorm, stringResource(R.string.status_disconnecting))
@@ -436,9 +439,9 @@ private fun DesktopStatusPill(state: DashboardUiState.Success, modifier: Modifie
     }
     Row(
         modifier = modifier
-            .clip(RoundedCornerShape(30.dp))
+            .clip(ClubShape)
             .background(Color.Black.copy(alpha = 0.40f))
-            .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(30.dp))
+            .border(1.dp, Color.White.copy(alpha = 0.10f), ClubShape)
             .padding(horizontal = 24.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -461,7 +464,7 @@ private fun DesktopMapLocationOverlay(
     Column(
         modifier = modifier
             .widthIn(min = 200.dp)
-            .liquidGlass(shape = RoundedCornerShape(16.dp))
+            .liquidGlass(shape = ClubShape)
             .clickable(onClick = onToggleIpVisibility)
             .padding(horizontal = 20.dp, vertical = 16.dp)
     ) {
@@ -502,7 +505,7 @@ private fun DesktopStatsCard(
 ) {
     val colors = ProtonNextTheme.colors
     var slide by rememberSaveable { mutableIntStateOf(0) }
-    Column(modifier = modifier.liquidGlass(shape = RoundedCornerShape(24.dp)).padding(16.dp)) {
+    Column(modifier = modifier.liquidGlass(shape = ClubShape).padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             val icon = when (slide) { 0 -> ProtonIcons.ChartLine; 1 -> ProtonIcons.ChartLine; else -> ProtonIcons.Clock }
             val title = when (slide) { 0 -> R.string.stats_title_traffic; 1 -> R.string.stats_title_analytics; else -> R.string.stats_title_usage }
@@ -533,7 +536,7 @@ private fun DesktopStatsCard(
             }
             if (!stats.enabled) {
                 Column(
-                    modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(12.dp)).background(Color.Black.copy(alpha = 0.62f)),
+                    modifier = Modifier.fillMaxSize().clip(ClubShape).background(Color.Black.copy(alpha = 0.62f)),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
@@ -548,8 +551,8 @@ private fun DesktopStatsCard(
 @Composable
 private fun DesktopStatIconButton(onClick: () -> Unit, content: @Composable () -> Unit) {
     Box(
-        modifier = Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(Color.White.copy(alpha = 0.06f))
-            .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(8.dp)).clickable(onClick = onClick),
+        modifier = Modifier.size(32.dp).clip(ClubShape).background(Color.White.copy(alpha = 0.06f))
+            .border(1.dp, Color.White.copy(alpha = 0.10f), ClubShape).clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) { content() }
 }
@@ -562,8 +565,8 @@ private fun DesktopTrafficSlide(stats: TrafficStatsUiState, isConnected: Boolean
         DesktopStatRow(stringResource(R.string.stats_year), stats.year)
         if (isConnected && liveSpeed != null) {
             Row(
-                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(ProtonNextTheme.colors.brandNorm.copy(alpha = 0.08f))
-                    .border(1.dp, ProtonNextTheme.colors.brandNorm.copy(alpha = 0.20f), RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth().clip(ClubShape).background(ProtonNextTheme.colors.brandNorm.copy(alpha = 0.08f))
+                    .border(1.dp, ProtonNextTheme.colors.brandNorm.copy(alpha = 0.20f), ClubShape).padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(stringResource(R.string.stats_live_connection).uppercase(), fontSize = 9.sp, fontWeight = FontWeight.Black, letterSpacing = 0.5.sp, color = ProtonNextTheme.colors.brandNorm, modifier = Modifier.weight(1f))
@@ -577,8 +580,8 @@ private fun DesktopTrafficSlide(stats: TrafficStatsUiState, isConnected: Boolean
 private fun DesktopStatRow(label: String, value: TrafficPeriodSummary) {
     val colors = ProtonNextTheme.colors
     Row(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color.White.copy(alpha = 0.02f))
-            .border(1.dp, Color.White.copy(alpha = 0.03f), RoundedCornerShape(10.dp)).padding(horizontal = 12.dp, vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth().clip(ClubShape).background(Color.White.copy(alpha = 0.02f))
+            .border(1.dp, Color.White.copy(alpha = 0.03f), ClubShape).padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(label, fontSize = 12.sp, color = colors.textWeak, modifier = Modifier.weight(1f))
@@ -639,8 +642,8 @@ private fun DesktopUsageSlide(stats: TrafficStatsUiState) {
 @Composable
 private fun DesktopUsageRow(label: String, seconds: Long) {
     Row(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color.White.copy(alpha = 0.02f))
-            .border(1.dp, Color.White.copy(alpha = 0.03f), RoundedCornerShape(12.dp)).padding(horizontal = 14.dp, vertical = 10.dp),
+        modifier = Modifier.fillMaxWidth().clip(ClubShape).background(Color.White.copy(alpha = 0.02f))
+            .border(1.dp, Color.White.copy(alpha = 0.03f), ClubShape).padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(ProtonIcons.Clock, null, tint = ProtonNextTheme.colors.brandNorm.copy(alpha = 0.60f), modifier = Modifier.size(14.dp))
