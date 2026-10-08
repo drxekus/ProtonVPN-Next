@@ -1,6 +1,6 @@
 # Чем этот форк отличается от оригинала
 
-Форк проекта ProtonVPN-Next (база — коммит `e4b08fa`, версия `12.0.0-alpha2st3-38`). Все изменения проверены на реальном телефоне и покрыты юнит-тестами (192 теста проходят).
+Форк проекта ProtonVPN-Next (база — коммит `e4b08fa`, версия `12.0.0-alpha2st3-38`). Все изменения проверены на реальном телефоне и покрыты юнит-тестами (193 теста проходят).
 
 [English version below](#english)
 
@@ -16,17 +16,20 @@
   - при перезапуске системой и при старте через «Постоянный VPN» (Always-on) восстанавливает последний туннель из снимка на диске, вместо того чтобы сразу остановиться;
   - при потере сети ждёт её и переподключается с нарастающей паузой (раньше — остановка, если не включён скрытый «kill switch», который можно было включить только через AI);
   - повторные подключения сохраняют раздельное туннелирование;
-  - если рукопожатия нет 25 секунд — туннель перезапускается;
+  - если рукопожатия нет 12 секунд (три попытки) — туннель перезапускается. Из 23 таких зависаний в журналах 16 прошли сразу после перезапуска, чаще всего на той же сети: умирал сам UDP-поток, новый сокет работал мгновенно;
   - при реальной смене сети (Wi-Fi ↔ мобильная, новый адрес) туннель перезапускается через 1,5 секунды, если за это время от сервера ничего не пришло. По журналам перепривязка сокета сама не восстановила связь ни разу из 22 случаев, и соединение висело до срабатывания 25-секундного сторожа;
   - на время проверки и восстановления удерживается короткая блокировка сна (не дольше 60 секунд, снимается сразу после подтверждения). Без неё таймеры спящего телефона опаздывали: перезапуск с задержкой 1 секунда стартовал через 51 секунду;
   - исправлена гонка, из-за которой туннель мог провисеть «Подключено» без сети всю ночь: ответ на рукопожатие от старого движка «подтверждал» новый, ещё не запущенный, и для нового движка не включался сторож зависаний;
   - исправлена гонка при запуске туннеля: примерно каждый шестой свежий запуск VPN-сервиса падал с `no available network interface` и подключался только со второй попытки. Сеть сообщается движку из двух потоков, и запуск иногда не дожидался, пока движок узнает о ней. Теперь сообщения идут по очереди (на телефоне — 0 падений из 37 запусков против 3 из 19);
+  - **честный статус при обрыве:** пока у телефона нет сети или сервер не отвечает на рукопожатие (примерно 7 секунд), приложение и уведомление пишут «Восстановление…», а не «Подключено». Обратно «Подключено» — только после ответа сервера;
+  - после смены сети туннель перезапускается, если рукопожатие на новом пути не прошло за 7 секунд. Поступление данных само по себе ничего не доказывает: из 30 таких случаев в журналах 15 всё равно кончились перезапуском, только позже;
   - если VPN-процесс убит (энергосбережение прошивки, сбой), основной процесс узнаёт об этом через привязку к сервису и поднимает туннель заново — вместо вечного ложного «Подключено»;
   - VPN-процесс может разбудить приложение и попросить свежую конфигурацию (например, если сертификат истёк);
   - после обновления приложения туннель поднимается сам. Установка обновления убивает VPN-процесс, а Realme/ColorOS не перезапускает «Постоянный VPN», и с блокировкой без VPN телефон оставался без сети, пока не откроешь приложение.
 - **«Последний использованный» — это последний выбор пользователя, а не последний сервер.** Быстрое подключение в этом режиме, плитка, автоподключение и восстановление сервисом брали первый сервер из «Недавних». Туда попадал и сервер, выбранный автоматикой, и он закреплялся навсегда: однажды выбранный старой сортировкой Южный Судан возвращался при каждом подключении. Теперь запоминается выбор пользователя (самый быстрый, страна, город, сервер или цель профиля), и для него каждый раз заново выбирается лучший сервер.
 - **Smart Routing не считается «самым быстрым».** У «виртуальных» стран Proton (сервер стоит в одной стране, а IP выдаёт другую) часто низкая нагрузка и хорошая оценка. Для общего «самого быстрого» они теперь идут после обычных серверов; выбрать их явно можно по-прежнему. В журнале подключения видна пятёрка лидеров с оценкой и нагрузкой.
 - **Перебор серверов не ходит по кругу.** Когда VPN-процесс будил приложение, перебор начинался заново, и одни и те же порты одного сервера пробовались часами. Теперь перебор продолжается с места остановки (и начинается заново только через 5 минут, когда условия могли измениться), а выбранный вручную сервер, который совсем не отвечает, после 4 попыток меняется на лучший сервер в той же стране.
+- **«Проверка…» не зависает.** Если проверочный запрос через туннель не прошёл, а переключиться было не на что, экран навсегда оставался в «Проверке…», хотя трафик шёл. Теперь проверка повторяется каждые 15 секунд, пока не пройдёт.
 - **Смена сети (вышки).** Движку сообщается только основная физическая сеть, как в официальном клиенте sing-box. Смена сети или IPv4-адреса на том же интерфейсе (`ccmni0` → новый адрес) теперь тоже считается сменой. Патч к amnezia-box (`scripts/patches/awgbox-awg-rebind.patch`): AWG-туннель при смене сети сразу пересоздаёт UDP-сокет и отправляет keepalive — в апстриме это делал только обычный WireGuard, поэтому соединение «висело», пока не сработают таймеры.
 - **Меньше фоновой нагрузки:** уведомление обновляется раз в 5 секунд, а не каждую секунду (прошивки считали это активностью в фоне).
 - **Мелочи:** повторное нажатие на сервер при неработающем туннеле больше не игнорируется; состояние «Подключение…» после ошибки сбрасывается; «Connect & Go» ждёт проверенного туннеля; прокси ByeDPI для обхода блокировки API запускается при старте приложения (раньше — только после открытия настроек); профили передают все параметры обфускации (S3/S4, I2–I5).
@@ -37,6 +40,7 @@
 - **Учится на своей сети.** Результаты хранятся отдельно для каждой сети (код оператора или хэш шлюза Wi-Fi, только на телефоне) и забываются с периодом полураспада 14 дней. Новое подключение берёт то, что сработало в этой сети последним; после неудачи следующий вариант выбирается сэмплированием Томпсона. Раз в неделю приложение снова пробует вариант пользователя — вдруг блокировку сняли.
 - **Разные установки выглядят по-разному.** Размеры мусора и записанный QUIC-образец выбираются один раз для каждой установки: раньше все копии приложения слали побайтно одинаковый I1.
 - Автоподбор работает с режимом «Без дополнительной защиты» и стандартным профилем AWG и выключается в настройках обфускации; свой профиль и цепочку прокси не трогает.
+- **Обрывы связи не портят статистику.** Неудачи в первую минуту после смены сети (лифт, переход на 3G) не засчитываются методу обфускации: в такие моменты не проходит никакой вариант.
 - Скилл Claude Code `tune-obfuscation` снимает с телефона журнал и статистику лестницы и помогает подобрать варианты для следующих версий.
 
 ## Приватность и безопасность
@@ -55,6 +59,8 @@
 - **Простые списки.** Страны, города и серверы — строки с разделителями вместо отдельных «стеклянных» плашек; полоса нагрузки убрана, процент остался; «три точки» заменены стрелкой вглубь. Нажатие на строку по-прежнему подключает.
 - **Экраны настроек без шапки.** Убран крупный блок под заголовком (круг с иконкой, повтор заголовка, описание) — описания есть в кнопках ⓘ. Убраны декоративные фоновые градиенты.
 - **Только светлая и тёмная тема.** Остальные темы удалены. Сохранённый выбор переносится в ближайшую: светлые по основе — в светлую, остальные — в тёмную, «системная» — по текущему режиму телефона.
+- **Новый стиль: красный и чёрный.** Фирменный цвет — красный вместо фиолетового Proton, тёмная тема на холодном почти чёрном фоне. Квадратные углы, тонкая обводка, подписи кнопок и вкладок заглавными вразрядку, заголовки разделов с красной чертой, узор из шевронов на карточке подключения и в шапке главной (текстура рисуется кодом). Подключённая страна на карте заштрихована красными шевронами.
+- **Анимации.** Выбранный пункт нижней панели и вкладки «Обычный | Tor» отмечает блок, который переезжает к нему; текст кнопок и вкладок «прокручивается» при нажатии; строки списков подсвечиваются красной полосой. При подключении — эффект радара (сетка, луч, расходящиеся кольца, печатается «Соединение установлено»), при обрыве — красная тревога вокруг статуса.
 - У каждого пункта настроек — кнопка ⓘ с описанием, что он делает на самом деле, когда его включать и что стоит по умолчанию (русский и английский).
 - Удалён переключатель «Ожидать завершения проверки»: проверка теперь всегда честная.
 - Нажатие на страну или город снова подключает к лучшему серверу в ней («три точки» — список городов и серверов). Раньше экран уходил на главную раньше, чем успевал прочитать список серверов, и подключение отменялось. То же исправлено для профилей.
@@ -80,26 +86,29 @@
 <a name="english"></a>
 # How this fork differs from the original
 
-A fork of ProtonVPN-Next at commit `e4b08fa`. Tested on a real phone; 192 unit tests pass.
+A fork of ProtonVPN-Next at commit `e4b08fa`. Tested on a real phone; 193 unit tests pass.
 
 **Connection stability**
 - "Fastest" only picks servers that are online and have a WireGuard key. Servers under maintenance kept a load of 0 and used to win. One shared `ServerSelector` replaces ten copies of that logic.
 - Servers are ranked by Proton's `Score` (load and distance), like the official client, instead of load alone, which made half-empty servers on another continent "fastest". The app sends `x-pm-netzone` (the user's network, last IPv4 octet zeroed) so the score is computed for the user rather than for the tunnel or API mirror.
 - "Connected" is shown only after a real WireGuard handshake and, in Balanced/Aggressive mode, an HTTPS round trip through the new VPN network. The old check reported success even when it failed, and its network monitor could not see VPN networks at all.
 - A silent server is replaced automatically: first its other nodes and ports, then the next server in the chosen scope (fastest, country or city). The "Auto" port starts from the last one that worked.
-- The VPN service restores the last tunnel on sticky restart and Always-on start. It waits for a network and retries with backoff instead of stopping, preserves split tunnelling on retries, and restarts a stalled tunnel after 25 s without a handshake. The app notices a killed VPN process through a service binding and brings the tunnel back.
+- The VPN service restores the last tunnel on sticky restart and Always-on start. It waits for a network and retries with backoff instead of stopping, preserves split tunnelling on retries, and restarts a stalled tunnel after 12 s (three handshake tries) without an answer: 16 of 23 stalls in field logs came back right after a restart, mostly on the same network, because only the old UDP flow was dead. The app notices a killed VPN process through a service binding and brings the tunnel back.
 - When the network really changes (Wi-Fi ↔ cellular, a new address), the tunnel restarts after 1.5 s unless the server answered in that time: in field logs the socket rebind alone never recovered the link (0 of 22). A short wake lock (60 s max, released once verified) keeps recovery timers from running late on a sleeping phone. Fixed a race where a handshake answer from the old engine "verified" a new one that had not started yet, leaving it without a stall detector: "Connected" with no traffic all night.
 - On a network change, only the default physical network is published. A new network or address on the same interface also counts as a change. A patch to amnezia-box makes the AWG endpoint rebind its socket and send a keepalive immediately, which upstream did only for plain WireGuard.
 - The tunnel comes back by itself after an app update; ColorOS did not restart Always-on VPN, leaving the phone offline under lockdown.
 - Fixed a start-up race: about one fresh VPN service start in six failed with `no available network interface` and connected only on the retry. Two threads published the first network, and the start sometimes went ahead before the engine knew it. Publishing is now serialized (0 failures in 37 starts on a phone, down from 3 in 19).
+- While the phone has no network or the server stops answering handshakes (about 7 s), the app and the notification say "Restoring…" instead of "Connected"; "Connected" comes back only with an answered handshake. After a network change the tunnel restarts if a handshake on the new path goes unanswered for 7 s: incoming data alone proved nothing (15 of 30 such cases in field logs still needed a restart, later).
 - "Last used" quick connect, the tile and auto-connect follow the user's last choice (fastest, country, city, server or profile target) instead of the most recent server, which pinned automatic picks forever. Smart Routing locations rank after real ones for a generic "fastest".
 - Failover no longer starts over each time the VPN process wakes the app (it retried the same ports for hours); an exact server that does not answer is replaced by the best one in its country after 4 attempts.
+- "Verifying…" no longer sticks: when the probe through the tunnel failed and failover had nothing to switch to, the screen stayed there for good while traffic flowed. The probe now repeats every 15 s until it passes.
 - The notification refreshes every 5 s instead of every second.
 
 **Censorship circumvention**
 - Automatic obfuscation ladder: after a handshake gets no answer, the next attempt also changes the obfuscation (none → standard → medium junk → strong junk → "live QUIC" I1 with a random connection ID and payload per handshake). All variants keep the handshake Proton-compatible (S1–S4 = 0, H1–H4 = 1–4).
 - It learns per network (operator code or Wi-Fi hash, on the device only) by Thompson sampling over results with a 14-day half-life, reuses what last worked, and retries the user's own setting weekly.
 - Junk sizes and the recorded QUIC sample are drawn per install, so installs no longer send identical I1 packets.
+- Failures in the first minute after a network change (a lift, a fall back to 3G) are not held against the obfuscation variant: nothing gets through at such moments.
 - A Claude Code skill, `tune-obfuscation`, pulls the ladder's data over adb to tune the variants.
 
 **Privacy and security**
@@ -114,6 +123,8 @@ A fork of ProtonVPN-Next at commit `e4b08fa`. Tested on a real phone; 192 unit t
 - Search on the countries screen by country name, code, city and server name ("RS#23"); names match from the start of a word. Lists are plain rows with dividers; the load bar is gone, the percent stays; a chevron replaces the three dots.
 - Settings screens lose the big header block (icon circle, repeated title, description; the ⓘ buttons keep the descriptions) and the decorative background gradients.
 - Only the light and dark themes are left; a saved removed theme maps to the palette it was based on, "system" to the phone's current mode.
+- New red-and-black look: red instead of Proton's purple, a cool near-black dark theme, square corners, thin outlines, uppercase spaced labels, section titles with a red rule, chevron patterns (drawn in code) on the connection card and the home header; the connected country is hatched with red chevrons on the map.
+- Motion: one block slides to the selected bottom-bar item and between the "Standard | Tor" tabs, button and tab labels roll over on press, list rows light up with a red bar. Connecting plays a radar effect (grid, sweep, rings, a typed "Link established"); losing the link shows a red alert around the status.
 - Every setting has an ⓘ explanation in English and Russian. Several wrong labels are fixed.
 - With Shizuku installed, the split tunnelling screen writes the excluded apps into Android's lockdown exception list (two commands, on a tap only).
 - Tapping a country or city connects to its best server again (the screen used to navigate away and cancel the connection); the same fix applies to profiles. The "server not responding" warning clears on disconnect.
