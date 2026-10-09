@@ -42,7 +42,6 @@ import ru.protonmod.next.ui.components.ServerCard
 import ru.protonmod.next.ui.icons.ProtonIcons
 import ru.protonmod.next.ui.theme.ProtonNextTheme
 import ru.protonmod.next.ui.theme.liquidGlass
-import ru.protonmod.next.ui.theme.ClubShape
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -174,7 +173,7 @@ private fun StrategyItem(
         modifier = modifier
             .fillMaxWidth()
             .liquidGlass(
-                shape = ClubShape,
+                shape = RoundedCornerShape(24.dp),
                 alpha = if (isSelected) 0.6f else 0.5f,
                 shadowElevation = 0.dp,
             )
@@ -189,8 +188,8 @@ private fun StrategyItem(
             Box(
                 modifier = Modifier
                     .size(40.dp)
-                    .clip(ClubShape)
-                    .background(if (isSelected) colors.brandNorm.copy(alpha = 0.1f) else colors.backgroundNorm),
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (isSelected) colors.textNorm.copy(alpha = 0.06f) else colors.backgroundNorm),
                 contentAlignment = Alignment.Center,
             ) {
                 if (flagResId != 0) {

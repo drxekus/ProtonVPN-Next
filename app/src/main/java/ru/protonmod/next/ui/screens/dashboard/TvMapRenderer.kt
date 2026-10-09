@@ -51,10 +51,6 @@ data class MapRendererConfig(
     @ColorInt val connected: Int,
     val borderWidth: Float,
     val zoomIndependentBorderWidth: Boolean,
-    /** Stripes drawn over the connected country ("captured"); null leaves it plain. */
-    @ColorInt val capturedStripes: Int? = null,
-    /** Width of one stripe in bitmap pixels. */
-    val stripeWidth: Float = 10f,
 )
 
 class TvMapRenderer(
@@ -69,9 +65,6 @@ class TvMapRenderer(
         val canvas: Canvas = Canvas(map)
         val outMap: Bitmap = createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val outCanvas: Canvas = Canvas(outMap)
-        // The connected country's shape, and the stripes cut out by it; allocated on first use.
-        val mask: Bitmap by lazy { createBitmap(w, h, Bitmap.Config.ARGB_8888) }
-        val stripes: Bitmap by lazy { createBitmap(w, h, Bitmap.Config.ARGB_8888) }
 
         fun isSize(w: Int, h: Int) = map.width == w && map.height == h
     }
@@ -154,29 +147,6 @@ class TvMapRenderer(
             canvas.drawColor(android.graphics.Color.TRANSPARENT, android.graphics.PorterDuff.Mode.CLEAR)
             svg.renderToCanvas(canvas, renderOptions)
 
-            val stripeColor = config.capturedStripes
-            val captured = highlightsToRender.filter {
-                it.highlight == CountryHighlight.CONNECTED && it.country !in fuzzyBorderCountries
-            }
-            if (stripeColor != null && captured.isNotEmpty()) {
-                // Second pass: only the connected country, in white, as a mask for the stripes.
-                val maskCss = "path { fill: rgba(0,0,0,0); stroke: none; } " +
-                    captured.joinToString(" ") { "#${it.country} { fill: rgba(255,255,255,1); }" }
-                val maskOptions = RenderOptions()
-                    .css(maskCss)
-                    .preserveAspectRatio(PreserveAspectRatio.STRETCH)
-                    .viewBox(
-                        region.x * documentWidth,
-                        region.y * documentWidth,
-                        documentWidth * viewBoxScale * regionScale,
-                        documentHeight * viewBoxScale * regionScale
-                    )
-                mask.eraseColor(android.graphics.Color.TRANSPARENT)
-                svg.renderToCanvas(Canvas(mask), maskOptions)
-                drawCapturedStripes(stripeColor)
-                canvas.drawBitmap(stripes, 0f, 0f, null)
-            }
-
             // If current render job was canceled don't produce and pass output bitmap to client,
             // but if it's still active don't suspend and finish blocking current (background)
             // thread to avoid starting new render before map is fully copied to output bitmap.
@@ -189,42 +159,6 @@ class TvMapRenderer(
             }
         }
         renderJob?.join()
-    }
-
-    /**
-     * Fills [RenderTarget.stripes] with chevron stripes in [color] and keeps them only where
-     * [RenderTarget.mask] is opaque: the connected country looks "captured" in the club style.
-     */
-    private fun RenderTarget.drawCapturedStripes(@ColorInt color: Int) {
-        stripes.eraseColor(android.graphics.Color.TRANSPARENT)
-        val stripeCanvas = Canvas(stripes)
-        val width = stripes.width.toFloat()
-        val height = stripes.height.toFloat()
-        val stroke = config.stripeWidth
-        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-            this.color = color
-            style = android.graphics.Paint.Style.STROKE
-            strokeWidth = stroke
-            strokeJoin = android.graphics.Paint.Join.MITER
-        }
-        val tipX = width / 2f
-        val halfWidth = width
-        val rise = halfWidth * 0.6f
-        val step = stroke * 2.4f
-        var y = -rise
-        while (y < height + rise) {
-            val chevron = android.graphics.Path().apply {
-                moveTo(tipX - halfWidth, y + rise)
-                lineTo(tipX, y)
-                lineTo(tipX + halfWidth, y + rise)
-            }
-            stripeCanvas.drawPath(chevron, paint)
-            y += step
-        }
-        val keepInside = android.graphics.Paint().apply {
-            xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_IN)
-        }
-        stripeCanvas.drawBitmap(mask, 0f, 0f, keepInside)
     }
 
     fun update(

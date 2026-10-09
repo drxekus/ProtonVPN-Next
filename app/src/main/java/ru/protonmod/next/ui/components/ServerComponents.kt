@@ -38,7 +38,6 @@ import ru.protonmod.next.ui.icons.ProtonIcons
 import ru.protonmod.next.ui.theme.ProtonNextTheme
 import ru.protonmod.next.ui.theme.liquidGlass
 import ru.protonmod.next.ui.utils.CountryUtils
-import ru.protonmod.next.ui.theme.ClubShape
 
 @Composable
 fun ServerCard(
@@ -57,7 +56,7 @@ fun ServerCard(
         modifier = modifier
             .fillMaxWidth()
             .liquidGlass(
-                shape = ClubShape,
+                shape = RoundedCornerShape(24.dp),
                 alpha = alpha ?: if (isConnected) 0.3f else 0.4f,
                 shadowElevation = 0.dp
             )
@@ -96,7 +95,7 @@ fun ServerCard(
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .clip(ClubShape)
+                                    .clip(RoundedCornerShape(6.dp))
                                     .background(colors.backgroundNorm),
                                 contentAlignment = Alignment.Center
                             ) {

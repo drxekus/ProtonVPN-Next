@@ -311,9 +311,9 @@
         <item>@color/olive_intense</item>
         <item>@color/pickle_intense</item>
     </array>
-    <color name="purple_200">#FFE0313F</color>
-    <color name="purple_500">#FFB2061C</color>
-    <color name="purple_700">#FF6B0410</color>
+    <color name="purple_200">#FF8FAEFF</color>
+    <color name="purple_500">#FF3E7BFA</color>
+    <color name="purple_700">#FF000000</color>
     <color name="teal_200">#FF03DAC5</color>
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>

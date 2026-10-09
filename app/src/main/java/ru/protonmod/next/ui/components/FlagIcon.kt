@@ -45,6 +45,7 @@ import androidx.core.graphics.record
 import androidx.core.graphics.withSave
 import androidx.core.graphics.withScale
 import kotlin.math.max
+import ru.protonmod.next.ui.theme.ProtonNextTheme
 
 object FlagDimensions {
     val DefaultWidth = 30.dp
@@ -66,6 +67,8 @@ fun FlagIcon(
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current.density
+    // A hairline outline keeps black stripes (Afghanistan, Angola...) visible on a black screen.
+    val outline = ProtonNextTheme.colors.textNorm.copy(alpha = 0.14f)
 
     Spacer(
         modifier = modifier
@@ -74,6 +77,12 @@ fun FlagIcon(
                 drawWithNativeCanvas(context, density) {
                     drawFlag(countryFlag, size, cornerRadius)
                 }
+                val radius = cornerRadius * density
+                drawRoundRect(
+                    color = outline,
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(radius, radius),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = density * 0.75f),
+                )
             }
     )
 }

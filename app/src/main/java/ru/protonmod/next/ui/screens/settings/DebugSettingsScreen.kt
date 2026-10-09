@@ -47,7 +47,6 @@ import ru.protonmod.next.ui.icons.ProtonIcons
 import ru.protonmod.next.ui.theme.ProtonNextTheme
 import ru.protonmod.next.ui.theme.liquidGlass
 import ru.protonmod.next.ui.utils.isTablet
-import ru.protonmod.next.ui.theme.ClubShape
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -133,7 +132,7 @@ fun DebugSettingsScreen(
                                         onClick = { viewModel.forceRefreshCertificate() },
                                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                                         colors = ButtonDefaults.buttonColors(containerColor = colors.brandNorm),
-                                        shape = ClubShape,
+                                        shape = RoundedCornerShape(12.dp),
                                         enabled = !uiState.isLoading
                                     ) {
                                         Icon(ProtonIcons.ArrowsRotate, contentDescription = null)
@@ -145,7 +144,7 @@ fun DebugSettingsScreen(
                                         onClick = { viewModel.forceRefreshSession() },
                                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                                         colors = ButtonDefaults.buttonColors(containerColor = colors.brandNorm.copy(alpha = 0.8f)),
-                                        shape = ClubShape,
+                                        shape = RoundedCornerShape(12.dp),
                                         enabled = !uiState.isLoading
                                     ) {
                                         Icon(ProtonIcons.ArrowsRotate, contentDescription = null)
@@ -157,7 +156,7 @@ fun DebugSettingsScreen(
                                         onClick = { viewModel.simulateExpiredCertificate() },
                                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                                         colors = ButtonDefaults.buttonColors(containerColor = colors.notificationError.copy(alpha = 0.8f)),
-                                        shape = ClubShape,
+                                        shape = RoundedCornerShape(12.dp),
                                         enabled = !uiState.isLoading
                                     ) {
                                         Icon(ProtonIcons.Bug, contentDescription = null)
@@ -293,7 +292,7 @@ fun DebugSettingsScreen(
                                     onClick = { showNukeConfirm = true },
                                     modifier = Modifier.fillMaxWidth().padding(16.dp),
                                     colors = ButtonDefaults.buttonColors(containerColor = colors.notificationError),
-                                    shape = ClubShape
+                                    shape = RoundedCornerShape(12.dp)
                                 ) {
                                     Icon(ProtonIcons.Broom, contentDescription = null)
                                     Spacer(Modifier.width(8.dp))
@@ -405,7 +404,7 @@ fun DebugSettingsScreen(
                                     onValueChange = { importJson = it },
                                     label = { Text(stringResource(R.string.hint_session_json)) },
                                     modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
-                                    shape = ClubShape,
+                                    shape = RoundedCornerShape(12.dp),
                                     colors = OutlinedTextFieldDefaults.colors(
                                         focusedBorderColor = colors.brandNorm,
                                         unfocusedBorderColor = colors.shade20,
@@ -458,7 +457,7 @@ private fun DebugSection(
     val colors = ProtonNextTheme.colors
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
-            text = title.uppercase(),
+            text = title,
             style = MaterialTheme.typography.labelLarge,
             color = titleColor,
             modifier = Modifier.padding(start = 8.dp, bottom = 8.dp)
@@ -466,7 +465,7 @@ private fun DebugSection(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .liquidGlass(shape = ClubShape, alpha = 0.3f, shadowElevation = 0.dp)
+                .liquidGlass(shape = RoundedCornerShape(20.dp), alpha = 0.3f, shadowElevation = 0.dp)
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
                 content()

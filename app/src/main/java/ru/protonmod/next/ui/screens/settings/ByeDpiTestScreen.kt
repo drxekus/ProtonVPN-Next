@@ -52,7 +52,6 @@ import ru.protonmod.next.ui.icons.ProtonIcons
 import ru.protonmod.next.ui.theme.ProtonNextTheme
 import ru.protonmod.next.ui.theme.liquidGlass
 import ru.protonmod.next.ui.utils.isTablet
-import ru.protonmod.next.ui.theme.ClubShape
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -162,7 +161,7 @@ fun ModeSelectorCard(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .liquidGlass(shape = ClubShape, alpha = 0.4f, shadowElevation = 0.dp)
+            .liquidGlass(shape = RoundedCornerShape(20.dp), alpha = 0.4f, shadowElevation = 0.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
@@ -216,7 +215,7 @@ fun ModeButton(
         onClick = onClick,
         enabled = enabled,
         modifier = modifier.height(48.dp),
-        shape = ClubShape,
+        shape = RoundedCornerShape(12.dp),
         color = if (isSelected) colors.brandNorm else colors.backgroundSecondary.copy(alpha = 0.3f),
         contentColor = if (isSelected) colors.backgroundNorm else colors.textNorm
     ) {
@@ -244,7 +243,7 @@ fun TestingProgressCard(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .liquidGlass(shape = ClubShape, alpha = 0.4f, shadowElevation = 0.dp)
+            .liquidGlass(shape = RoundedCornerShape(20.dp), alpha = 0.4f, shadowElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -270,7 +269,7 @@ fun TestingProgressCard(
                     onClick = onStop,
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(containerColor = colors.notificationError),
-                    shape = ClubShape
+                    shape = RoundedCornerShape(12.dp)
                 ) {
                     Icon(Icons.Rounded.Stop, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
@@ -281,7 +280,7 @@ fun TestingProgressCard(
                     onClick = onStart,
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(containerColor = colors.brandNorm),
-                    shape = ClubShape
+                    shape = RoundedCornerShape(12.dp)
                 ) {
                     Icon(ProtonIcons.Play, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
@@ -304,7 +303,7 @@ fun ResultItem(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .background(colors.backgroundSecondary.copy(alpha = 0.3f), ClubShape)
+            .background(colors.backgroundSecondary.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
             .padding(16.dp)
     ) {
         Column {
@@ -341,7 +340,7 @@ fun ResultItem(
                         contentPadding = PaddingValues(horizontal = 12.dp),
                         modifier = Modifier.height(32.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = colors.brandNorm),
-                        shape = ClubShape
+                        shape = RoundedCornerShape(8.dp)
                     ) {
                         Text(stringResource(R.string.btn_apply), style = MaterialTheme.typography.labelSmall)
                     }

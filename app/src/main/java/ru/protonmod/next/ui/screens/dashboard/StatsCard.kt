@@ -59,7 +59,6 @@ import ru.protonmod.next.R
 import ru.protonmod.next.ui.icons.ProtonIcons
 import ru.protonmod.next.ui.theme.ProtonNextTheme
 import ru.protonmod.next.ui.theme.liquidGlass
-import ru.protonmod.next.ui.theme.ClubShape
 
 /**
  * Dashboard statistics card - a direct port of the desktop stats slider.
@@ -78,7 +77,7 @@ fun StatsCard(
 
     Column(
         modifier = modifier
-            .liquidGlass(shape = ClubShape)
+            .liquidGlass(shape = RoundedCornerShape(24.dp))
             .padding(horizontal = 20.dp, vertical = 16.dp)
     ) {
         // Header: slide icon + title, chevrons, eye toggle.
@@ -95,10 +94,9 @@ fun StatsCard(
                 modifier = Modifier.size(18.dp)
             )
             Text(
-                text = title.uppercase(),
+                text = title,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
-                letterSpacing = 1.sp,
                 color = ProtonNextTheme.colors.textWeak,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -194,7 +192,7 @@ private fun TrafficSlide(
         if (isConnected && liveSpeed != null) {
             Spacer(modifier = Modifier.weight(1f))
             Surface(
-                shape = ClubShape,
+                shape = RoundedCornerShape(12.dp),
                 color = ProtonNextTheme.colors.notificationSuccess.copy(alpha = 0.12f),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -203,10 +201,9 @@ private fun TrafficSlide(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = stringResource(R.string.stats_live_connection).uppercase(),
+                        text = stringResource(R.string.stats_live_connection),
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp,
                         color = ProtonNextTheme.colors.notificationSuccess,
                         modifier = Modifier.weight(1f)
                     )
@@ -290,10 +287,9 @@ private fun ChartBlock(
 ) {
     Column(modifier = modifier) {
         Text(
-            text = label.uppercase(),
+            text = label,
             fontSize = 9.sp,
             fontWeight = FontWeight.Bold,
-            letterSpacing = 1.sp,
             color = ProtonNextTheme.colors.textWeak
         )
         SmoothChart(

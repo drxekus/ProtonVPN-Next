@@ -30,7 +30,6 @@ import ru.protonmod.next.ui.components.NavigationHeader
 import ru.protonmod.next.ui.icons.ProtonIcons
 import ru.protonmod.next.ui.theme.ProtonNextTheme
 import ru.protonmod.next.ui.theme.liquidGlass
-import ru.protonmod.next.ui.theme.ClubShape
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,7 +65,7 @@ fun CertSettingsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp)
-                        .liquidGlass(shape = ClubShape, alpha = 0.4f, shadowElevation = 0.dp)
+                        .liquidGlass(shape = RoundedCornerShape(16.dp), alpha = 0.4f, shadowElevation = 0.dp)
                 ) {
                     Column(modifier = Modifier.padding(vertical = 4.dp)) {
                         SettingToggleRow(
@@ -122,7 +121,7 @@ fun CertSettingsScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 16.dp)
-                            .clip(ClubShape)
+                            .clip(RoundedCornerShape(8.dp))
                             .background(Color.Red.copy(alpha = 0.1f))
                             .padding(12.dp)
                     ) {

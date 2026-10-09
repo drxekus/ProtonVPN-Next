@@ -86,8 +86,6 @@
     <string name="status_connected">Connected</string>
     <string name="status_connecting">Connecting…</string>
     <string name="status_verifying">Verifying…</string>
-    <string name="radar_link_established">Link established</string>
-    <string name="radar_link_lost">Restoring link</string>
     <string name="status_recovering">Restoring…</string>
     <string name="status_disconnecting">Disconnecting…</string>
     <string name="status_disconnected">Disconnected</string>

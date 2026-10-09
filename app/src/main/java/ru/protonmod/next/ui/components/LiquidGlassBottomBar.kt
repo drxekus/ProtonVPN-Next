@@ -41,9 +41,11 @@ import ru.protonmod.next.ui.nav.MainTarget
 import ru.protonmod.next.ui.theme.ProtonNextTheme
 import ru.protonmod.next.ui.theme.liquidGlass
 import ru.protonmod.next.ui.utils.isTablet
-import ru.protonmod.next.ui.theme.ClubShape
-import ru.protonmod.next.ui.theme.ClubEasing
-import androidx.compose.foundation.layout.BoxWithConstraints
+import ru.protonmod.next.ui.theme.PillShape
+import ru.protonmod.next.ui.theme.AppEaseOut
+import ru.protonmod.next.ui.theme.pressScale
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 
 @Composable
 fun LiquidGlassBottomBar(
@@ -55,8 +57,6 @@ fun LiquidGlassBottomBar(
     notificationDots: ImmutableSet<MainTarget> = persistentSetOf()
 ) {
     val isTablet = isTablet()
-
-    val glassShape = ClubShape
 
     val targets = mutableListOf(MainTarget.Home)
     if (showCountries) targets.add(MainTarget.Countries)
@@ -73,115 +73,64 @@ fun LiquidGlassBottomBar(
             modifier = Modifier
                 .widthIn(max = if (isTablet) 400.dp else 600.dp)
                 .padding(horizontal = 24.dp)
-                .liquidGlass(
-                    shape = glassShape,
-                    // Nearly opaque: the square bar showed the list scrolling under it.
-                    alpha = 0.97f,
-                    shadowElevation = 15.dp
-                )
+                // Darker than the cards it floats over, with a soft shadow, like the ChatGPT
+                // composer bar.
+                .shadow(16.dp, PillShape, ambientColor = Color.Black, spotColor = Color.Black)
+                .clip(PillShape)
+                .background(if (ProtonNextTheme.colors.isDark) ProtonNextTheme.colors.shade15 else ProtonNextTheme.colors.shade0)
         ) {
-            BoxWithConstraints(
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(70.dp)
+                    .height(68.dp)
+                    // Swallows taps that land between the items so they do not reach
+                    // the content scrolled underneath the bar.
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = {}
+                    ),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                val colors = ProtonNextTheme.colors
-                val cell = maxWidth / targets.size
-                val selectedIndex = targets.indexOf(selectedTarget)
-                var pressedIndex by remember { mutableStateOf<Int?>(null) }
-                // One light block and one red bar slide between the items (cubic ease in and
-                // out); a finger on another item pulls the block there before the switch.
-                val blockIndex = pressedIndex ?: selectedIndex
-                val blockOffset by animateDpAsState(
-                    targetValue = cell * blockIndex.coerceAtLeast(0),
-                    animationSpec = tween(250, easing = ClubEasing),
-                    label = "navBlock"
-                )
-                val barOffset by animateDpAsState(
-                    targetValue = cell * selectedIndex.coerceAtLeast(0),
-                    animationSpec = tween(250, easing = ClubEasing),
-                    label = "navBar"
-                )
-                if (blockIndex >= 0) {
-                    Box(
-                        modifier = Modifier
-                            .offset(x = blockOffset)
-                            .width(cell)
-                            .fillMaxHeight()
-                            .padding(horizontal = 10.dp, vertical = 8.dp)
-                            .background(colors.textNorm.copy(alpha = 0.08f), ClubShape)
+                targets.forEach { target ->
+                    NavigationItem(
+                        target = target,
+                        isSelected = target == selectedTarget,
+                        hasNotification = notificationDots.contains(target),
+                        onNavigate = { navigateTo(target) },
+                        modifier = Modifier.weight(1f)
                     )
-                }
-                if (selectedIndex >= 0) {
-                    Box(
-                        modifier = Modifier
-                            .offset(x = barOffset + (cell - 24.dp) / 2)
-                            .align(Alignment.BottomStart)
-                            .padding(bottom = 10.dp)
-                            .width(24.dp)
-                            .height(3.dp)
-                            .background(colors.brandNorm)
-                    )
-                }
-                Row(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        // Swallows taps that land between the items so they do not reach
-                        // the content scrolled underneath the bar.
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = {}
-                        ),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    targets.forEachIndexed { index, target ->
-                        NavigationItem(
-                            target = target,
-                            isSelected = target == selectedTarget,
-                            hasNotification = notificationDots.contains(target),
-                            onNavigate = { navigateTo(target) },
-                            onPressedChange = { pressed ->
-                                if (pressed) pressedIndex = index else if (pressedIndex == index) pressedIndex = null
-                            },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
                 }
             }
         }
     }
 }
 
+/**
+ * One bottom-bar item. Switching tabs happens many times a day, so the change is only a quick
+ * color fade and a soft circle behind the selected icon; a press scales the item slightly.
+ */
 @Composable
 private fun NavigationItem(
     target: MainTarget,
     isSelected: Boolean,
     hasNotification: Boolean,
     onNavigate: () -> Unit,
-    onPressedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = ProtonNextTheme.colors
-    val activeColor = colors.navigationActive
-    val inactiveColor = colors.iconWeak
-
     val iconColor by animateColorAsState(
-        targetValue = if (isSelected) activeColor else inactiveColor,
-        animationSpec = spring(stiffness = Spring.StiffnessLow),
-        label = "iconColor"
+        targetValue = if (isSelected) colors.textNorm else colors.iconWeak,
+        animationSpec = tween(150),
+        label = "navIconColor"
     )
-
-    val iconVector = getProtonIconForTarget(target)
+    val circleAlpha by animateFloatAsState(
+        targetValue = if (isSelected) 1f else 0f,
+        animationSpec = tween(150, easing = AppEaseOut),
+        label = "navCircle"
+    )
     val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
-    LaunchedEffect(pressed) { onPressedChange(pressed) }
-    val iconScale by animateFloatAsState(
-        targetValue = if (pressed) 0.85f else if (isSelected) 1.1f else 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
-        label = "navIconScale"
-    )
 
     Box(
         contentAlignment = Alignment.Center,
@@ -193,17 +142,23 @@ private fun NavigationItem(
                 onClick = onNavigate
             )
     ) {
-        Box(modifier = Modifier.scale(iconScale)) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .pressScale(interaction)
+                .size(48.dp)
+                .background(colors.shade20.copy(alpha = circleAlpha), CircleShape)
+        ) {
             Icon(
-                imageVector = iconVector,
+                imageVector = getProtonIconForTarget(target),
                 contentDescription = target.name,
                 tint = iconColor,
                 modifier = Modifier.size(24.dp)
             )
-
             if (hasNotification) {
                 Box(
                     modifier = Modifier
+                        .padding(10.dp)
                         .size(8.dp)
                         .background(colors.notificationError, CircleShape)
                         .align(Alignment.TopEnd)

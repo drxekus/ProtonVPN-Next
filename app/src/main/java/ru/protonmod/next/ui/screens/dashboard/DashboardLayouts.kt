@@ -49,7 +49,6 @@ import ru.protonmod.next.ui.icons.ProtonIcons
 import ru.protonmod.next.ui.theme.ProtonNextTheme
 import ru.protonmod.next.ui.theme.liquidGlass
 import ru.protonmod.next.ui.utils.CountryUtils
-import ru.protonmod.next.ui.theme.ClubShape
 
 /**
  * Tablet layout - a 1:1 port of the desktop dashboard grid:
@@ -249,7 +248,7 @@ internal fun RecentConnectionsCard(
 
     Column(
         modifier = modifier
-            .liquidGlass(shape = ClubShape)
+            .liquidGlass(shape = RoundedCornerShape(24.dp))
             .padding(20.dp)
     ) {
         Row(
@@ -257,10 +256,9 @@ internal fun RecentConnectionsCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = stringResource(R.string.title_recent_connections).uppercase(),
+                text = stringResource(R.string.title_recent_connections),
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
-                letterSpacing = 1.sp,
                 color = colors.textWeak,
                 modifier = Modifier.weight(1f)
             )
@@ -362,10 +360,9 @@ internal fun RecentConnectionsBottomSheet(
     ) {
         // High opacity background ensures content is legible even without window-level blur.
         Text(
-            text = stringResource(R.string.title_recent_connections).uppercase(),
+            text = stringResource(R.string.title_recent_connections),
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
-            letterSpacing = 1.sp,
             color = colors.textWeak,
             modifier = Modifier.padding(horizontal = 20.dp)
         )
@@ -399,8 +396,8 @@ private fun RecentServerRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(ClubShape)
-            .background(if (isActive) colors.brandNorm.copy(alpha = 0.12f) else Color.Transparent)
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (isActive) colors.textNorm.copy(alpha = 0.06f) else Color.Transparent)
             .clickable { onClick() }
             .padding(horizontal = 8.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically

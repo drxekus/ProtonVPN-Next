@@ -39,7 +39,6 @@ import ru.protonmod.next.R
 import ru.protonmod.next.ui.icons.ProtonIcons
 import ru.protonmod.next.ui.theme.ProtonNextTheme
 import ru.protonmod.next.ui.utils.isTablet
-import ru.protonmod.next.ui.theme.ClubShape
 
 @Composable
 fun PolicyAcceptanceScreen(
@@ -77,7 +76,7 @@ fun PolicyAcceptanceScreen(
                     OutlinedButton(
                         onClick = { (context as? android.app.Activity)?.finishAffinity() },
                         modifier = Modifier.weight(1f).height(56.dp),
-                        shape = ClubShape,
+                        shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.textNorm)
                     ) {
                         Text(stringResource(R.string.btn_cancel))
@@ -85,7 +84,7 @@ fun PolicyAcceptanceScreen(
                     Button(
                         onClick = onAccept,
                         modifier = Modifier.weight(1f).height(56.dp),
-                        shape = ClubShape,
+                        shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = colors.brandNorm, contentColor = colors.textInverted)
                     ) {
                         Text(stringResource(R.string.btn_accept), fontWeight = FontWeight.Bold)

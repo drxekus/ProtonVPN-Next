@@ -75,8 +75,6 @@
     <string name="status_connected">Подключено</string>
     <string name="status_connecting">Подключение…</string>
     <string name="status_verifying">Проверка…</string>
-    <string name="radar_link_established">Соединение установлено</string>
-    <string name="radar_link_lost">Восстановление связи</string>
     <string name="status_recovering">Восстановление…</string>
     <string name="status_disconnecting">Отключение…</string>
     <string name="status_disconnected">Отключено</string>

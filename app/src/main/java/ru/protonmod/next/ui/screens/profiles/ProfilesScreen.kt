@@ -57,7 +57,6 @@ import ru.protonmod.next.ui.theme.liquidGlass
 import ru.protonmod.next.ui.utils.CountryUtils
 import ru.protonmod.next.ui.utils.isTablet
 import ru.protonmod.next.utils.ProtonLogger
-import ru.protonmod.next.ui.theme.ClubShape
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -114,7 +113,7 @@ fun ProfilesScreen(
                     onClick = onCreateNewProfile,
                     containerColor = colors.brandNorm,
                     contentColor = colors.onInteraction,
-                    shape = ClubShape,
+                    shape = RoundedCornerShape(16.dp),
                     modifier = Modifier
                         .windowInsetsPadding(WindowInsets.navigationBars)
                         .padding(bottom = 130.dp)
@@ -130,21 +129,6 @@ fun ProfilesScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Background gradient decoration (immersive)
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                colors.brandNorm.copy(alpha = 0.25f),
-                                colors.backgroundNorm.copy(alpha = 0.1f),
-                                colors.backgroundNorm
-                            )
-                        )
-                    )
-            )
-
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -248,7 +232,7 @@ private fun ProfilesHeader(
         if (isTablet) {
             Button(
                 onClick = onCreateNewProfile,
-                shape = ClubShape,
+                shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = colors.brandNorm),
                 modifier = Modifier
                     .statusBarsPadding()
@@ -280,7 +264,7 @@ fun ProfileCardItem(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .liquidGlass(shape = ClubShape, alpha = 0.4f, shadowElevation = 0.dp)
+            .liquidGlass(shape = RoundedCornerShape(28.dp), alpha = 0.4f, shadowElevation = 0.dp)
             .background(
                 brush = Brush.linearGradient(
                     colors = listOf(
@@ -289,7 +273,7 @@ fun ProfileCardItem(
                         accent.end.copy(alpha = 0.14f)
                     )
                 ),
-                shape = ClubShape
+                shape = RoundedCornerShape(28.dp)
             )
             .clickable(onClick = onConnect)
     ) {
@@ -303,7 +287,7 @@ fun ProfileCardItem(
             Box(
                 modifier = Modifier
                     .size(72.dp, 48.dp)
-                    .clip(ClubShape)
+                    .clip(RoundedCornerShape(12.dp))
                     .background(accent.start.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
             ) {
@@ -404,7 +388,7 @@ fun FeatureBadge(
     val badgeColor = accent ?: ProtonNextTheme.colors.brandNorm
     Box(
         modifier = modifier
-            .clip(ClubShape)
+            .clip(RoundedCornerShape(8.dp))
             .background(badgeColor.copy(alpha = 0.12f))
             .padding(horizontal = 8.dp, vertical = 2.dp)
     ) {

@@ -64,13 +64,12 @@ import ru.protonmod.next.ui.theme.ProtonNextTheme
 import ru.protonmod.next.ui.utils.CountryUtils
 import ru.protonmod.next.ui.utils.isTablet
 import ru.protonmod.next.utils.ProtonLogger
-import ru.protonmod.next.ui.theme.ClubShape
-import ru.protonmod.next.ui.theme.ClubSegmentedTabs
-import ru.protonmod.next.ui.theme.ClubLabel
-import ru.protonmod.next.ui.theme.clubPressHighlight
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.runtime.remember
-import ru.protonmod.next.ui.theme.RollingLabel
+import ru.protonmod.next.ui.theme.AppSegmentedTabs
+import ru.protonmod.next.ui.theme.AppLabel
+import ru.protonmod.next.ui.theme.pressHighlight
+import ru.protonmod.next.ui.theme.PillShape
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -259,7 +258,7 @@ private fun CountriesSearchField(
         onValueChange = onQueryChange,
         modifier = modifier.fillMaxWidth(),
         singleLine = true,
-        shape = ClubShape,
+        shape = PillShape,
         placeholder = { Text(stringResource(R.string.countries_search_hint)) },
         leadingIcon = {
             Icon(
@@ -280,13 +279,13 @@ private fun CountriesSearchField(
             }
         },
         colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = colors.brandNorm,
-            unfocusedBorderColor = colors.separatorNorm,
+            focusedBorderColor = Color.Transparent,
+            unfocusedBorderColor = Color.Transparent,
             focusedTextColor = colors.textNorm,
             unfocusedTextColor = colors.textNorm,
             cursorColor = colors.brandNorm,
-            focusedContainerColor = colors.backgroundSecondary.copy(alpha = 0.4f),
-            unfocusedContainerColor = colors.backgroundSecondary.copy(alpha = 0.4f),
+            focusedContainerColor = colors.backgroundSecondary,
+            unfocusedContainerColor = colors.backgroundSecondary,
             focusedPlaceholderColor = colors.textWeak,
             unfocusedPlaceholderColor = colors.textWeak,
         ),
@@ -364,12 +363,12 @@ private fun ConnectionModeSelector(
     onSelect: (CountryConnectionMode) -> Unit,
 ) {
     val modes = CountryConnectionMode.entries
-    ClubSegmentedTabs(
+    AppSegmentedTabs(
         count = modes.size,
         selectedIndex = modes.indexOf(selected),
         onSelect = { onSelect(modes[it]) },
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-    ) { index, _, contentColor, rolled ->
+    ) { index, _, contentColor ->
         val mode = modes[index]
         val title = when (mode) {
             CountryConnectionMode.STANDARD -> stringResource(R.string.connection_mode_standard)
@@ -384,7 +383,7 @@ private fun ConnectionModeSelector(
             )
             Spacer(Modifier.width(6.dp))
         }
-        RollingLabel(text = title, color = contentColor, rolled = rolled)
+        AppLabel(text = title, color = contentColor)
     }
 }
 
@@ -403,7 +402,7 @@ private fun CountryFlagBadge(
             Box(
                 modifier = Modifier
                     .size(36.dp, 24.dp)
-                    .clip(ClubShape)
+                    .clip(RoundedCornerShape(6.dp))
                     .background(colors.backgroundSecondary),
                 contentAlignment = Alignment.Center
             ) {
@@ -464,8 +463,8 @@ private fun ServerRow(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(if (isConnected) colors.brandNorm.copy(alpha = 0.08f) else Color.Transparent)
-            .clubPressHighlight(interaction)
+            .background(if (isConnected) colors.textNorm.copy(alpha = 0.06f) else Color.Transparent)
+            .pressHighlight(interaction)
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
     ) {
         Row(
@@ -562,7 +561,7 @@ fun CityCard(
             Box(
                 modifier = Modifier
                     .size(36.dp, 24.dp)
-                    .clip(ClubShape)
+                    .clip(RoundedCornerShape(6.dp))
                     .background(colors.backgroundSecondary),
                 contentAlignment = Alignment.Center
             ) {
@@ -678,7 +677,7 @@ private fun SearchResultsList(
                             Box(
                                 modifier = Modifier
                                     .size(36.dp, 24.dp)
-                                    .clip(ClubShape)
+                                    .clip(RoundedCornerShape(6.dp))
                                     .background(colors.backgroundSecondary),
                                 contentAlignment = Alignment.Center
                             ) {

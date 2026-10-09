@@ -47,7 +47,6 @@ import ru.protonmod.next.ui.icons.ProtonIcons
 import ru.protonmod.next.ui.theme.ProtonNextTheme
 import ru.protonmod.next.ui.theme.liquidGlass
 import ru.protonmod.next.ui.utils.isTablet
-import ru.protonmod.next.ui.theme.ClubShape
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -149,7 +148,7 @@ fun SplitTunnelingAppsScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(bottom = 16.dp)
-                                    .clip(ClubShape),
+                                    .clip(RoundedCornerShape(12.dp)),
                                 placeholder = {
                                     Text(
                                         stringResource(R.string.st_search_apps_hint),
@@ -265,7 +264,7 @@ fun AppListItem(
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .padding(vertical = 4.dp)
-            .liquidGlass(shape = ClubShape, alpha = 0.3f, shadowElevation = 0.dp)
+            .liquidGlass(shape = RoundedCornerShape(20.dp), alpha = 0.3f, shadowElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),

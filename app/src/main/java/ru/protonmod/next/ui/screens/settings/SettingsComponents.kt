@@ -50,11 +50,10 @@ import ru.protonmod.next.R
 import ru.protonmod.next.ui.icons.ProtonIcons
 import ru.protonmod.next.ui.theme.ProtonNextTheme
 import ru.protonmod.next.ui.theme.liquidGlass
-import ru.protonmod.next.ui.theme.ClubShape
-import ru.protonmod.next.ui.theme.ClubSectionTitle
-import ru.protonmod.next.ui.theme.clubPressHighlight
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.runtime.remember
+import ru.protonmod.next.ui.theme.AppSectionTitle
+import ru.protonmod.next.ui.theme.pressHighlight
 
 @Composable
 fun SettingsCategory(
@@ -65,10 +64,10 @@ fun SettingsCategory(
     val colors = ProtonNextTheme.colors
     Column(modifier = modifier) {
         if (title.isNotEmpty()) {
-            ClubSectionTitle(
+            AppSectionTitle(
                 text = title,
                 modifier = Modifier
-                    .padding(start = 4.dp, top = 28.dp, bottom = 12.dp)
+                    .padding(start = 16.dp, top = 28.dp, bottom = 10.dp)
                     .fillMaxWidth()
             )
         } else {
@@ -78,7 +77,7 @@ fun SettingsCategory(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .liquidGlass(shape = ClubShape, alpha = 0.4f, shadowElevation = 0.dp)
+                .liquidGlass(shape = RoundedCornerShape(20.dp), alpha = 0.4f, shadowElevation = 0.dp)
         ) {
             Column(modifier = Modifier.padding(vertical = 4.dp)) {
                 content()
@@ -109,7 +108,7 @@ fun SettingRowWithIcon(
     // Pass the enabled state to the clickable modifier
     if (onClick != null) {
         baseModifier = baseModifier
-            .clubPressHighlight(interaction)
+            .pressHighlight(interaction)
             .clickable(
                 interactionSource = interaction,
                 indication = null,
@@ -131,12 +130,10 @@ fun SettingRowWithIcon(
             Box(
                 modifier = Modifier
                     .padding(end = 16.dp)
-                    .size(36.dp)
-                    .clip(ClubShape)
-                    .background(colors.brandNorm.copy(alpha = 0.12f)),
+                    .size(36.dp),
                 contentAlignment = Alignment.Center
             ) {
-                val iconColor = if (titleColor != colors.textNorm) titleColor else colors.brandNorm
+                val iconColor = titleColor
                 if (iconRes != null) {
                     // Proton VPN ships some feature icons as pre-colored assets and
                     // draws them untinted, the same way the official client does.
@@ -316,7 +313,7 @@ fun InfoCard(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .liquidGlass(shape = ClubShape, alpha = 0.3f, shadowElevation = 0.dp)
+            .liquidGlass(shape = RoundedCornerShape(20.dp), alpha = 0.3f, shadowElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier.padding(16.dp),

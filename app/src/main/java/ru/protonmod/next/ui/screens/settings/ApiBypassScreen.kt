@@ -65,7 +65,6 @@ import ru.protonmod.next.ui.icons.ProtonIcons
 import ru.protonmod.next.ui.theme.ProtonNextTheme
 import ru.protonmod.next.ui.theme.liquidGlass
 import ru.protonmod.next.ui.utils.isTablet
-import ru.protonmod.next.ui.theme.ClubShape
 
 /**
  * Screen for configuring API Block Bypass strategies.
@@ -124,7 +123,7 @@ fun ApiBypassScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(bottom = 16.dp),
-                        shape = ClubShape,
+                        shape = RoundedCornerShape(12.dp),
                         color = colors.notificationWarning.copy(alpha = 0.15f),
                         contentColor = colors.notificationWarning
                     ) {
@@ -153,7 +152,7 @@ fun ApiBypassScreen(
                 Box(
                     modifier = contentModifier
                         .padding(horizontal = 16.dp)
-                        .liquidGlass(shape = ClubShape, alpha = 0.4f, shadowElevation = 0.dp)
+                        .liquidGlass(shape = RoundedCornerShape(16.dp), alpha = 0.4f, shadowElevation = 0.dp)
                 ) {
                     Column(modifier = Modifier.padding(vertical = 4.dp)) {
 
@@ -240,7 +239,7 @@ fun ApiBypassScreen(
                                     Column(
                                         modifier = Modifier
                                             .padding(horizontal = 24.dp, vertical = 8.dp)
-                                            .background(colors.backgroundSecondary.copy(alpha = 0.3f), ClubShape)
+                                            .background(colors.backgroundSecondary.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
                                             .padding(12.dp)
                                     ) {
                                         // SNI Host input
@@ -282,7 +281,7 @@ fun ApiBypassScreen(
                                     Column(
                                         modifier = Modifier
                                             .padding(horizontal = 24.dp, vertical = 8.dp)
-                                            .background(colors.backgroundSecondary.copy(alpha = 0.3f), ClubShape)
+                                            .background(colors.backgroundSecondary.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
                                             .padding(12.dp)
                                     ) {
                                         // Host input
@@ -367,7 +366,7 @@ private fun ProxyTypeDropdown(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(ClubShape)
+                .clip(RoundedCornerShape(8.dp))
                 .background(colors.backgroundNorm.copy(alpha = 0.5f))
                 .clickable { expanded = true }
                 .padding(horizontal = 12.dp, vertical = 8.dp)
@@ -460,7 +459,7 @@ private fun SettingInputRow(
             modifier = Modifier.fillMaxWidth(),
             placeholder = { Text(placeholder, color = colors.textWeak) },
             singleLine = true,
-            shape = ClubShape,
+            shape = RoundedCornerShape(8.dp),
             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                 keyboardType = if (isNumber) androidx.compose.ui.text.input.KeyboardType.Number 
                               else androidx.compose.ui.text.input.KeyboardType.Text

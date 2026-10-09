@@ -53,7 +53,6 @@ import ru.protonmod.next.ui.theme.liquidGlass
 import ru.protonmod.next.utils.system.LockdownAllowlist
 import ru.protonmod.next.utils.system.LockdownAllowlist.Access
 import javax.inject.Inject
-import ru.protonmod.next.ui.theme.ClubShape
 
 @HiltViewModel
 class LockdownAllowlistViewModel @Inject constructor(
@@ -129,7 +128,7 @@ fun LockdownAllowlistCard(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .liquidGlass(shape = ClubShape, alpha = 0.4f, shadowElevation = 0.dp)
+            .liquidGlass(shape = RoundedCornerShape(16.dp), alpha = 0.4f, shadowElevation = 0.dp)
             .padding(start = 16.dp, end = 4.dp, top = 12.dp, bottom = 12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {

@@ -43,7 +43,6 @@ import ru.protonmod.next.ui.theme.liquidGlass
 import ru.protonmod.next.vpn.ObfuscationAdvisor
 import ru.protonmod.next.vpn.ObfuscationLadder
 import javax.inject.Inject
-import ru.protonmod.next.ui.theme.ClubShape
 
 @HiltViewModel
 class AutoObfuscationViewModel @Inject constructor(
@@ -88,7 +87,7 @@ fun AutoObfuscationCard(
         info = stringResource(R.string.auto_obfuscation_info),
         modifier = modifier
             .fillMaxWidth()
-            .liquidGlass(shape = ClubShape, alpha = 0.4f, shadowElevation = 0.dp)
+            .liquidGlass(shape = RoundedCornerShape(16.dp), alpha = 0.4f, shadowElevation = 0.dp)
     )
 }
 

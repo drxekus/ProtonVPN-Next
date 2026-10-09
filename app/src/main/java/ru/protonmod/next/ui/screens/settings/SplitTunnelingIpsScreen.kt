@@ -50,7 +50,6 @@ import ru.protonmod.next.ui.icons.ProtonIcons
 import ru.protonmod.next.ui.theme.ProtonNextTheme
 import ru.protonmod.next.ui.theme.liquidGlass
 import ru.protonmod.next.ui.utils.isTablet
-import ru.protonmod.next.ui.theme.ClubShape
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -104,7 +103,7 @@ fun SplitTunnelingIpsScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp)
-                                .liquidGlass(shape = ClubShape, alpha = 0.4f, shadowElevation = 0.dp)
+                                .liquidGlass(shape = RoundedCornerShape(20.dp), alpha = 0.4f, shadowElevation = 0.dp)
                         ) {
                             Column(
                                 modifier = Modifier
@@ -131,7 +130,7 @@ fun SplitTunnelingIpsScreen(
                                         },
                                         modifier = Modifier
                                             .weight(1f)
-                                            .clip(ClubShape),
+                                            .clip(RoundedCornerShape(12.dp)),
                                         placeholder = {
                                             Text(
                                                 stringResource(R.string.st_ip_hint),
@@ -173,7 +172,7 @@ fun SplitTunnelingIpsScreen(
                                     Box(
                                         modifier = Modifier
                                             .size(56.dp)
-                                            .clip(ClubShape)
+                                            .clip(RoundedCornerShape(12.dp))
                                             .background(
                                                 if (inputValue.isNotBlank()) colors.brandNorm
                                                 else colors.backgroundSecondary.copy(alpha = 0.3f)
@@ -261,7 +260,7 @@ fun IpListItem(
             .fillMaxWidth()
             .clickable(onClick = onRemove)
             .padding(vertical = 4.dp)
-            .liquidGlass(shape = ClubShape, alpha = 0.3f, shadowElevation = 0.dp)
+            .liquidGlass(shape = RoundedCornerShape(20.dp), alpha = 0.3f, shadowElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier.padding(16.dp),

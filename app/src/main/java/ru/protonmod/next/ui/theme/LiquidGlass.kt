@@ -30,24 +30,18 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
+/**
+ * A surface in the ChatGPT style: opaque graphite on black (light grey on white), no outline,
+ * an optional soft shadow. The name and the alpha/border parameters are kept for callers.
+ */
 @Composable
 fun Modifier.liquidGlass(
-    shape: Shape = ClubShape,
-    alpha: Float = 0.4f,
-    borderAlpha: Float = 0.1f,
+    shape: Shape = RoundedCornerShape(24.dp),
+    @Suppress("UNUSED_PARAMETER") alpha: Float = 1f,
+    @Suppress("UNUSED_PARAMETER") borderAlpha: Float = 0f,
     shadowElevation: Dp = 0.dp
 ): Modifier {
     val colors = ProtonNextTheme.colors
-    val isDark = colors.isDark
-    
-    // A thin solid outline, as on the square panels of the club site.
-    val borderBrush = androidx.compose.ui.graphics.SolidColor(
-        if (isDark) colors.shade40.copy(alpha = 0.9f) else colors.shade40
-    )
-
-    // Glass background: use backgroundSecondary with the provided alpha to ensure translucency
-    val glassBackgroundColor = colors.backgroundSecondary.copy(alpha = alpha)
-
     return this
         .then(
             if (shadowElevation > 0.dp) {
@@ -55,16 +49,11 @@ fun Modifier.liquidGlass(
                     elevation = shadowElevation,
                     shape = shape,
                     clip = false,
-                    ambientColor = Color.Black.copy(alpha = 0.05f),
-                    spotColor = Color.Black.copy(alpha = 0.1f)
+                    ambientColor = Color.Black.copy(alpha = 0.2f),
+                    spotColor = Color.Black.copy(alpha = 0.3f)
                 )
             } else Modifier
         )
         .clip(shape)
-        .background(glassBackgroundColor)
-        .border(
-            width = 1.dp,
-            brush = borderBrush,
-            shape = shape
-        )
+        .background(colors.backgroundSecondary)
 }

@@ -41,7 +41,6 @@ import ru.protonmod.next.ui.icons.ProtonIcons
 import ru.protonmod.next.ui.theme.ProtonNextTheme
 import ru.protonmod.next.ui.theme.liquidGlass
 import ru.protonmod.next.ui.utils.isTablet
-import ru.protonmod.next.ui.theme.ClubShape
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -81,7 +80,7 @@ fun AutoOpenUrlScreen(
                 Box(
                     modifier = contentModifier
                         .padding(horizontal = 16.dp)
-                        .liquidGlass(shape = ClubShape, alpha = 0.4f, shadowElevation = 0.dp)
+                        .liquidGlass(shape = RoundedCornerShape(20.dp), alpha = 0.4f, shadowElevation = 0.dp)
                 ) {
                     Column(modifier = Modifier.padding(24.dp)) {
                         SmoothOutlinedTextField(
@@ -90,7 +89,7 @@ fun AutoOpenUrlScreen(
                             label = { Text(stringResource(R.string.label_enter_url)) },
                             placeholder = { Text("https://example.com") },
                             modifier = Modifier.fillMaxWidth(),
-                            shape = ClubShape,
+                            shape = RoundedCornerShape(16.dp),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = colors.brandNorm,
                                 unfocusedBorderColor = colors.shade20,
@@ -111,7 +110,7 @@ fun AutoOpenUrlScreen(
                                 onUrlSave(finalUrl)
                             },
                             modifier = Modifier.fillMaxWidth().height(56.dp),
-                            shape = ClubShape,
+                            shape = RoundedCornerShape(16.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = colors.brandNorm)
                         ) {
                             Text(stringResource(R.string.btn_save), color = colors.textInverted, fontWeight = FontWeight.Bold)

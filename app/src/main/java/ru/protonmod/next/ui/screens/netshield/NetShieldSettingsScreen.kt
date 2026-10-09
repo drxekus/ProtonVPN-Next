@@ -84,7 +84,6 @@ import ru.protonmod.next.ui.icons.ProtonIcons
 import ru.protonmod.next.ui.theme.ProtonNextTheme
 import ru.protonmod.next.ui.theme.liquidGlass
 import ru.protonmod.next.ui.utils.isTablet
-import ru.protonmod.next.ui.theme.ClubShape
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -117,20 +116,6 @@ fun NetShieldSettingsScreen(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { paddingValues ->
         Box(Modifier.fillMaxSize().padding(paddingValues)) {
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(
-                                colors.brandNorm.copy(alpha = 0.25f),
-                                colors.backgroundNorm.copy(alpha = 0.1f),
-                                colors.backgroundNorm,
-                            )
-                        )
-                    )
-            )
-
             LazyColumn(
                 modifier = Modifier.fillMaxSize().statusBarsPadding(),
                 horizontalAlignment = if (tablet) Alignment.CenterHorizontally else Alignment.Start,
@@ -192,7 +177,7 @@ fun NetShieldSettingsScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .liquidGlass(
-                                    shape = ClubShape,
+                                    shape = RoundedCornerShape(20.dp),
                                     alpha = 0.4f,
                                     shadowElevation = 0.dp,
                                 )
@@ -228,7 +213,7 @@ fun NetShieldSettingsScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .liquidGlass(
-                                    shape = ClubShape,
+                                    shape = RoundedCornerShape(20.dp),
                                     alpha = 0.4f,
                                     shadowElevation = 0.dp,
                                 )
@@ -287,7 +272,7 @@ fun NetShieldSettingsScreen(
                                         color = colors.notificationError,
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .clip(ClubShape)
+                                            .clip(RoundedCornerShape(12.dp))
                                             .background(colors.notificationError.copy(alpha = 0.1f))
                                             .padding(12.dp),
                                     )
@@ -297,7 +282,7 @@ fun NetShieldSettingsScreen(
                                     onClick = viewModel::updateLists,
                                     enabled = !state.lists.isUpdating,
                                     modifier = Modifier.fillMaxWidth().height(54.dp),
-                                    shape = ClubShape,
+                                    shape = RoundedCornerShape(16.dp),
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = colors.brandNorm,
                                         contentColor = colors.textInverted,
@@ -350,7 +335,7 @@ fun NetShieldSettingsScreen(
                     Row(
                         modifier = contentModifier
                             .padding(horizontal = 16.dp)
-                            .clip(ClubShape)
+                            .clip(RoundedCornerShape(16.dp))
                             .background(colors.brandNorm.copy(alpha = 0.09f))
                             .padding(16.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -378,7 +363,7 @@ fun NetShieldSettingsScreen(
 @Composable
 private fun SectionTitle(title: String) {
     Text(
-        text = title.uppercase(),
+        text = title,
         style = MaterialTheme.typography.labelMedium,
         color = ProtonNextTheme.colors.textWeak,
         modifier = Modifier.padding(start = 8.dp),
@@ -410,7 +395,7 @@ private fun LevelRow(level: NetShieldLevel, selected: Boolean, onClick: () -> Un
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .padding(horizontal = 4.dp, vertical = 2.dp)
-            .clip(ClubShape)
+            .clip(RoundedCornerShape(16.dp))
             .background(background)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,

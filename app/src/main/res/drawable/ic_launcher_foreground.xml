@@ -18,7 +18,7 @@
         <!-- Main Body with New Blue-Red Gradient -->
         <path
             android:pathData="M243.637,419.72 L109.732,177.114 C95.596,151.503 116.289,120.62 145.351,123.952 L417.942,155.21 C444.575,158.264 458.647,188.314 443.94,210.727 L305.254,422.075 C290.38,444.741 256.738,443.455 243.637,419.72 Z"
-            android:strokeColor="#FFB2061C"
+            android:strokeColor="#FFFFFFFF"
             android:strokeWidth="3"
             android:strokeLineJoin="round"
             android:strokeLineCap="round">
@@ -29,14 +29,14 @@
                     android:endX="400"
                     android:endY="450"
                     android:type="linear">
-                    <!-- Dark red -->
-                    <item android:offset="0" android:color="#FF6B0410"/>
-                    <!-- Deep red -->
-                    <item android:offset="0.33" android:color="#FF8E0516"/>
-                    <!-- Brand red -->
-                    <item android:offset="0.66" android:color="#FFB2061C"/>
-                    <!-- Light red -->
-                    <item android:offset="1" android:color="#FFE0313F"/>
+                    <!-- White -->
+                    <item android:offset="0" android:color="#FFFFFFFF"/>
+                    <!-- Light grey -->
+                    <item android:offset="0.33" android:color="#FFF2F2F2"/>
+                    <!-- Grey -->
+                    <item android:offset="0.66" android:color="#FFDADADA"/>
+                    <!-- Darker grey -->
+                    <item android:offset="1" android:color="#FFBDBDBD"/>
                 </gradient>
             </aapt:attr>
         </path>

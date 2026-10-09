@@ -74,7 +74,6 @@ import ru.protonmod.next.ui.theme.ProtonNextTheme
 import ru.protonmod.next.ui.theme.liquidGlass
 import ru.protonmod.next.ui.utils.CountryUtils
 import ru.protonmod.next.ui.utils.isTablet
-import ru.protonmod.next.ui.theme.ClubShape
 
 // Helper function to dynamically localize city names based on string resources
 
@@ -162,15 +161,7 @@ fun EditProfileScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(
-                            animatedBackgroundAccent,
-                            colors.backgroundNorm.copy(alpha = 0.1f),
-                            colors.backgroundNorm
-                        )
-                    )
-                )
+                .background(colors.backgroundNorm)
         )
 
         Scaffold(
@@ -223,7 +214,7 @@ fun EditProfileScreen(
                                     onNavigateBack()
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = colors.brandNorm),
-                                shape = ClubShape,
+                                shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier.padding(end = 8.dp)
                             ) {
                                 Text(stringResource(R.string.btn_save), color = colors.onInteraction, fontWeight = FontWeight.Bold)
@@ -354,7 +345,7 @@ fun EditProfileScreen(
                             },
                             modifier = contentModifier.padding(horizontal = 16.dp).height(56.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Color.Red.copy(alpha = 0.1f)),
-                            shape = ClubShape
+                            shape = RoundedCornerShape(16.dp)
                         ) {
                             Icon(ProtonIcons.Trash, contentDescription = null, tint = Color.Red)
                             Spacer(Modifier.width(8.dp))
@@ -432,7 +423,7 @@ fun SelectionCard(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .liquidGlass(shape = ClubShape, alpha = 0.5f)
+            .liquidGlass(shape = RoundedCornerShape(20.dp), alpha = 0.5f)
             .clickable(onClick = onClick)
     ) {
         Column {
@@ -508,7 +499,7 @@ fun LocationSelectionDialog(
             Box(modifier = Modifier) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = ClubShape,
+                    shape = RoundedCornerShape(24.dp),
                     colors = CardDefaults.cardColors(containerColor = colors.backgroundNorm),
                     border = BorderStroke(1.dp, colors.shade100.copy(alpha = 0.05f))
                 ) {
@@ -612,7 +603,7 @@ fun LocationSelectionDialog(
                                                         Box(
                                                             modifier = Modifier
                                                                 .size(36.dp, 24.dp)
-                                                                .clip(ClubShape)
+                                                                .clip(RoundedCornerShape(6.dp))
                                                                 .background(colors.backgroundNorm),
                                                             contentAlignment = Alignment.Center
                                                         ) {
@@ -644,7 +635,7 @@ fun LocationSelectionDialog(
                                                     Box(
                                                         modifier = Modifier
                                                             .size(36.dp, 24.dp)
-                                                            .clip(ClubShape)
+                                                            .clip(RoundedCornerShape(6.dp))
                                                             .background(colors.backgroundNorm),
                                                         contentAlignment = Alignment.Center
                                                     ) {
@@ -676,7 +667,7 @@ fun LocationSelectionDialog(
                                                     Box(
                                                         modifier = Modifier
                                                             .size(36.dp, 24.dp)
-                                                            .clip(ClubShape)
+                                                            .clip(RoundedCornerShape(6.dp))
                                                             .background(colors.backgroundNorm),
                                                         contentAlignment = Alignment.Center
                                                     ) {
@@ -730,7 +721,7 @@ fun SettingsCategory(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .liquidGlass(shape = ClubShape, alpha = 0.5f)
+                .liquidGlass(shape = RoundedCornerShape(20.dp), alpha = 0.5f)
         ) {
             Column(modifier = Modifier.padding(vertical = 4.dp)) {
                 content()
@@ -770,7 +761,7 @@ fun SettingRowWithIcon(
                 modifier = Modifier
                     .padding(end = 16.dp)
                     .size(48.dp, 32.dp)
-                    .clip(ClubShape)
+                    .clip(RoundedCornerShape(8.dp))
                     .background(colors.brandNorm.copy(alpha = 0.1f)),
                 contentAlignment = Alignment.Center
             ) {
@@ -875,7 +866,7 @@ fun SettingTextFieldRow(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
-        shape = ClubShape,
+        shape = RoundedCornerShape(12.dp),
         colors = OutlinedTextFieldDefaults.colors(
             focusedTextColor = colors.textNorm,
             unfocusedTextColor = colors.textNorm,
@@ -907,7 +898,7 @@ fun ObfuscationConfigSelectionDialog(
             Box(modifier = Modifier) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = ClubShape,
+                    shape = RoundedCornerShape(24.dp),
                     colors = CardDefaults.cardColors(containerColor = colors.backgroundSecondary)
                 ) {
                     Column(modifier = Modifier.padding(vertical = 16.dp)) {
@@ -1010,7 +1001,7 @@ fun ObfuscationProfileEditDialog(
             Box(modifier = Modifier) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = ClubShape,
+                    shape = RoundedCornerShape(24.dp),
                     colors = CardDefaults.cardColors(containerColor = colors.backgroundSecondary)
                 ) {
                     Column(
@@ -1037,7 +1028,7 @@ fun ObfuscationProfileEditDialog(
                                     onValueChange = { name = it },
                                     label = { Text(stringResource(R.string.obfuscation_config_name)) },
                                     modifier = Modifier.fillMaxWidth(),
-                                    shape = ClubShape,
+                                    shape = RoundedCornerShape(16.dp),
                                     colors = OutlinedTextFieldDefaults.colors(
                                         focusedBorderColor = colors.brandNorm,
                                         unfocusedBorderColor = colors.shade20
@@ -1126,7 +1117,7 @@ fun ObfuscationProfileEditDialog(
                                     ))
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = colors.brandNorm),
-                                shape = ClubShape
+                                shape = RoundedCornerShape(12.dp)
                             ) {
                                 Text(stringResource(R.string.btn_save))
                             }
@@ -1154,7 +1145,7 @@ private fun EditSettingsCard(content: @Composable ColumnScope.() -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .liquidGlass(shape = ClubShape, alpha = 0.5f)
+            .liquidGlass(shape = RoundedCornerShape(20.dp), alpha = 0.5f)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -1219,7 +1210,7 @@ private fun ProfileHeroPreview(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .liquidGlass(shape = ClubShape, alpha = 0.4f, shadowElevation = 0.dp)
+            .liquidGlass(shape = RoundedCornerShape(28.dp), alpha = 0.4f, shadowElevation = 0.dp)
             .background(
                 brush = Brush.linearGradient(
                     colors = listOf(
@@ -1228,7 +1219,7 @@ private fun ProfileHeroPreview(
                         accent.end.copy(alpha = 0.15f)
                     )
                 ),
-                shape = ClubShape
+                shape = RoundedCornerShape(28.dp)
             )
     ) {
         Row(
@@ -1240,7 +1231,7 @@ private fun ProfileHeroPreview(
             Box(
                 modifier = Modifier
                     .size(72.dp, 48.dp)
-                    .clip(ClubShape)
+                    .clip(RoundedCornerShape(12.dp))
                     .background(accent.start.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
             ) {

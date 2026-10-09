@@ -75,22 +75,22 @@ object ProtonPalette {
 
     val Woodsmoke = Color(0xFF17181C)
 
-    // Brand: deep red on a cool near-black, replacing Proton's purple.
-    val CrimsonDarken40 = Color(0xFF6B0410)
-    val CrimsonDarken20 = Color(0xFF8E0516)
-    val Crimson = Color(0xFFB2061C)
-    val CrimsonLighten20 = Color(0xFFE0313F)
-    val CrimsonLighten40 = Color(0xFFF4A6AE)
+    // Accent: one blue, as in the ChatGPT app, replacing Proton's purple.
+    val AccentDarken40 = Color(0xFF1F4FBF)
+    val AccentDarken20 = Color(0xFF2E63E0)
+    val Accent = Color(0xFF3E7BFA)
+    val AccentLighten20 = Color(0xFF8FAEFF)
+    val AccentLighten40 = Color(0xFFC9D7FF)
 
-    // Dark neutrals without the purple tint of the Proton greys.
-    val Ink = Color(0xFF020B12)
-    val InkRaised = Color(0xFF0D161D)
-    val InkCard = Color(0xFF182128)
-    val Graphite = Color(0xFF262E35)
-    val Asphalt = Color(0xFF343B41)
-    val Slate = Color(0xFF555D64)
-    val Pewter = Color(0xFF6E777E)
-    val Fog = Color(0xFFA9B1B7)
+    // Neutral greys of the dark theme: pure black under graphite surfaces.
+    val Ink = Color(0xFF000000)
+    val InkRaised = Color(0xFF171717)
+    val InkCard = Color(0xFF212121)
+    val Graphite = Color(0xFF2F2F2F)
+    val Asphalt = Color(0xFF424242)
+    val Slate = Color(0xFF5E5E5E)
+    val Pewter = Color(0xFF8E8E8E)
+    val Fog = Color(0xFFB4B4B4)
 
     val Pomegranate = Color(0xFFCC2D4F)
     val Mauvelous = Color(0xFFF08FA4)
@@ -148,11 +148,11 @@ class ProtonColors(
     val shade10: Color,
     val shade0: Color,
 
-    val brandDarken40: Color = ProtonPalette.CrimsonDarken40,
-    val brandDarken20: Color = ProtonPalette.CrimsonDarken20,
-    val brandNorm: Color = ProtonPalette.Crimson,
-    val brandLighten20: Color = ProtonPalette.CrimsonLighten20,
-    val brandLighten40: Color = ProtonPalette.CrimsonLighten40,
+    val brandDarken40: Color = ProtonPalette.AccentDarken40,
+    val brandDarken20: Color = ProtonPalette.AccentDarken20,
+    val brandNorm: Color = ProtonPalette.Accent,
+    val brandLighten20: Color = ProtonPalette.AccentLighten20,
+    val brandLighten40: Color = ProtonPalette.AccentLighten40,
 
     val textNorm: Color = shade100,
     val textAccent: Color = brandNorm,
@@ -355,11 +355,11 @@ class ProtonColors(
 
 
         private fun baseLight(
-            brandDarken40: Color = ProtonPalette.CrimsonDarken40,
-            brandDarken20: Color = ProtonPalette.CrimsonDarken20,
-            brandNorm: Color = ProtonPalette.Crimson,
-            brandLighten20: Color = ProtonPalette.CrimsonLighten20,
-            brandLighten40: Color = ProtonPalette.CrimsonLighten40,
+            brandDarken40: Color = ProtonPalette.AccentDarken40,
+            brandDarken20: Color = ProtonPalette.AccentDarken20,
+            brandNorm: Color = ProtonPalette.Accent,
+            brandLighten20: Color = ProtonPalette.AccentLighten20,
+            brandLighten40: Color = ProtonPalette.AccentLighten40,
         ) = ProtonColors(
             isDark = false,
             brandDarken40 = brandDarken40,
@@ -370,14 +370,15 @@ class ProtonColors(
             notificationError = ProtonPalette.Pomegranate,
             notificationWarning = ProtonPalette.Sunglow,
             notificationSuccess = ProtonPalette.Apple,
-            shade100 = ProtonPalette.Cinder,
-            shade80 = ProtonPalette.DoveGray,
-            shade60 = ProtonPalette.Dawn,
-            shade50 = ProtonPalette.CottonSeed,
-            shade40 = ProtonPalette.Cloud,
-            shade20 = ProtonPalette.Ebb,
-            shade15 = ProtonPalette.Pampas,
-            shade10 = Color(0xFFF0F0F0), // Explicit secondary
+            // Neutral greys as in the ChatGPT app's light theme.
+            shade100 = Color(0xFF0D0D0D),
+            shade80 = Color(0xFF5D5D5D),
+            shade60 = Color(0xFF8E8E8E),
+            shade50 = Color(0xFFB4B4B4),
+            shade40 = Color(0xFFD9D9D9),
+            shade20 = Color(0xFFECECEC),
+            shade15 = Color(0xFFF4F4F4),
+            shade10 = Color(0xFFF9F9F9),
             shade0 = Color.White,
             shadowNorm = Color.Black.copy(alpha = 0.1f),
             shadowRaised = Color.Black.copy(alpha = 0.1f),
@@ -390,17 +391,17 @@ class ProtonColors(
                 interactionWeakNorm = it.shade15,
                 interactionWeakPressed = it.shade20,
                 interactionWeakDisabled = it.shade10,
-                backgroundSecondary = it.shade15.copy(alpha = 0.4f), // More transparent for better glass effect
+                backgroundSecondary = it.shade15,
                 onInteraction = Color.White,
             )
         }
 
         private fun baseDark(
-            brandDarken40: Color = ProtonPalette.CrimsonDarken40,
-            brandDarken20: Color = ProtonPalette.CrimsonDarken20,
-            brandNorm: Color = ProtonPalette.Crimson,
-            brandLighten20: Color = ProtonPalette.CrimsonLighten20,
-            brandLighten40: Color = ProtonPalette.CrimsonLighten40,
+            brandDarken40: Color = ProtonPalette.AccentDarken40,
+            brandDarken20: Color = ProtonPalette.AccentDarken20,
+            brandNorm: Color = ProtonPalette.Accent,
+            brandLighten20: Color = ProtonPalette.AccentLighten20,
+            brandLighten40: Color = ProtonPalette.AccentLighten40,
         ) = ProtonColors(
             isDark = true,
             brandDarken40 = brandDarken40,
@@ -432,23 +433,23 @@ class ProtonColors(
                 interactionWeakPressed = it.shade40,
                 interactionWeakDisabled = it.shade15,
                 interactionDisabled = it.brandDarken40,
-                backgroundNorm = it.shade10,
-                backgroundSecondary = it.shade20.copy(alpha = 0.4f), // More transparent for better glass effect
+                backgroundNorm = it.shade0,
+                backgroundSecondary = it.shade20,
                 backgroundDeep = it.shade0,
                 onInteraction = Color.White,
-                // Inverted text and icons sit on the brand red (buttons, selected tabs, switch
-                // thumbs); the near-black shade0 was unreadable there.
+                // Inverted text and icons sit on the blue accent (buttons, switch thumbs); the
+                // black shade0 was unreadable there.
                 textInverted = Color.White,
                 iconInverted = Color.White,
             )
         }
 
         private fun sidebarLight(
-            brandDarken40: Color = ProtonPalette.CrimsonDarken40,
-            brandDarken20: Color = ProtonPalette.CrimsonDarken20,
-            brandNorm: Color = ProtonPalette.Crimson,
-            brandLighten20: Color = ProtonPalette.CrimsonLighten20,
-            brandLighten40: Color = ProtonPalette.CrimsonLighten40,
+            brandDarken40: Color = ProtonPalette.AccentDarken40,
+            brandDarken20: Color = ProtonPalette.AccentDarken20,
+            brandNorm: Color = ProtonPalette.Accent,
+            brandLighten20: Color = ProtonPalette.AccentLighten20,
+            brandLighten40: Color = ProtonPalette.AccentLighten40,
         ) = baseLight(
             brandDarken40 = brandDarken40,
             brandDarken20 = brandDarken20,
@@ -464,15 +465,15 @@ class ProtonColors(
             textWeak = ProtonPalette.Fog,
             iconNorm = ProtonPalette.White,
             iconWeak = ProtonPalette.Fog,
-            interactionPressed = ProtonPalette.CrimsonDarken20,
+            interactionPressed = ProtonPalette.AccentDarken20,
         )
 
         private fun sidebarDark(
-            brandDarken40: Color = ProtonPalette.CrimsonDarken40,
-            brandDarken20: Color = ProtonPalette.CrimsonDarken20,
-            brandNorm: Color = ProtonPalette.Crimson,
-            brandLighten20: Color = ProtonPalette.CrimsonLighten20,
-            brandLighten40: Color = ProtonPalette.CrimsonLighten40,
+            brandDarken40: Color = ProtonPalette.AccentDarken40,
+            brandDarken20: Color = ProtonPalette.AccentDarken20,
+            brandNorm: Color = ProtonPalette.Accent,
+            brandLighten20: Color = ProtonPalette.AccentLighten20,
+            brandLighten40: Color = ProtonPalette.AccentLighten40,
         ) = baseDark(
             brandDarken40 = brandDarken40,
             brandDarken20 = brandDarken20,
@@ -488,7 +489,7 @@ class ProtonColors(
             textWeak = ProtonPalette.Fog,
             iconNorm = ProtonPalette.White,
             iconWeak = ProtonPalette.Fog,
-            interactionPressed = ProtonPalette.CrimsonDarken20,
+            interactionPressed = ProtonPalette.AccentDarken20,
         )
 
         fun fromMaterial3(scheme: ColorScheme, isDark: Boolean): ProtonColors {

@@ -45,7 +45,6 @@ import ru.protonmod.next.ui.components.ServerCard
 import ru.protonmod.next.ui.icons.ProtonIcons
 import ru.protonmod.next.ui.theme.ProtonNextTheme
 import ru.protonmod.next.ui.utils.isTablet
-import ru.protonmod.next.ui.theme.ClubShape
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -125,7 +124,7 @@ fun LoadModePreviewCard(
                 .border(
                     width = if (isSelected) 3.dp else 0.dp,
                     color = if (isSelected) colors.brandNorm else Color.Transparent,
-                    shape = ClubShape
+                    shape = RoundedCornerShape(24.dp)
                 )
         ) {
             val mockServer = remember {

@@ -72,7 +72,6 @@ import ru.protonmod.next.ui.theme.AppTheme
 import ru.protonmod.next.ui.theme.ProtonNextTheme
 import ru.protonmod.next.ui.theme.liquidGlass
 import ru.protonmod.next.utils.ProtonLogger
-import ru.protonmod.next.ui.theme.ClubShape
 
 @Composable
 fun WelcomeScreen(
@@ -731,10 +730,10 @@ private fun StepConfigPort(onNext: (Int) -> Unit, onBack: () -> Unit) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(ClubShape)
+                        .clip(RoundedCornerShape(20.dp))
                         .clickable { selectedPort = port }
                         .liquidGlass(
-                            shape = ClubShape,
+                            shape = RoundedCornerShape(20.dp),
                             alpha = if (isSelected) 0.3f else 0.1f,
                             shadowElevation = 0.dp
                         )
@@ -803,9 +802,9 @@ private fun StepConfigObfuscation(onNext: (Boolean) -> Unit, onBack: () -> Unit)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(ClubShape)
+                .clip(RoundedCornerShape(24.dp))
                 .liquidGlass(
-                    shape = ClubShape,
+                    shape = RoundedCornerShape(24.dp),
                     alpha = if (enabled) 0.3f else 0.1f,
                     shadowElevation = 0.dp
                 )
@@ -986,7 +985,7 @@ private fun StepConfigTelemetry(
                     color = colors.textWeak,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .liquidGlass(ClubShape, alpha = 0.2f, shadowElevation = 0.dp)
+                        .liquidGlass(RoundedCornerShape(16.dp), alpha = 0.2f, shadowElevation = 0.dp)
                         .padding(16.dp)
                 )
             }
@@ -1076,9 +1075,9 @@ private fun TelemetrySetupToggle(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(ClubShape)
+            .clip(RoundedCornerShape(18.dp))
             .clickable { onCheckedChange(!checked) }
-            .liquidGlass(ClubShape, alpha = 0.18f, shadowElevation = 0.dp)
+            .liquidGlass(RoundedCornerShape(18.dp), alpha = 0.18f, shadowElevation = 0.dp)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -1188,7 +1187,7 @@ private fun ShowcaseCard(
             .fillMaxWidth()
             .padding(vertical = 8.dp)
             .liquidGlass(
-                shape = ClubShape,
+                shape = RoundedCornerShape(24.dp),
                 alpha = 0.05f,
                 shadowElevation = 0.dp
             )
