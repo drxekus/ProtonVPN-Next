@@ -281,6 +281,31 @@ object NetworkModule {
                 return@Interceptor chain.proceed(builder.build())
             }
 
+            // Going direct, only a request for the API itself or one built for a proxy has its
+            // host put back to the API. Every other Proton host keeps its own: the human
+            // verification page on verify.proton.me (loaded through this client while the API
+            // bypass is on) used to be sent to the API host whenever a VPN was active, which
+            // answered 404 "Path not found" instead of the captcha.
+            val isApiOrProxyHost = host == protonDirectHost ||
+                host == "api.protonvpn.ch" ||
+                host == protonNetlifyHost ||
+                host == protonCloudflareHost ||
+                host == protonDenoHost ||
+                (eventProxyHost != null && host == eventProxyHost)
+            if (!useProxy && !isApiOrProxyHost) {
+                val builder = protonRequest.newBuilder()
+                    .header("User-Agent", userAgent)
+                    .header("x-pm-appversion", "android-vpn@$spoofedVersion-dev+play")
+                    .header("x-pm-apiversion", "4")
+                    .apply {
+                        if (settings.isSpoofCountryEnabledSync() && !settings.isSpoofCountryNullSync()) {
+                            val code = settings.getSpoofCountryCodeSync().uppercase()
+                            if (code.length == 2) header("x-pm-country", code)
+                        }
+                    }
+                return@Interceptor chain.proceed(builder.build())
+            }
+
             val proxyBaseUrl = when (strategy) {
                 SettingsManager.STRATEGY_CLOUDFLARE -> PROTON_PROXY_CLOUDFLARE_URL
                 SettingsManager.STRATEGY_DENO -> PROTON_PROXY_DENO_URL
