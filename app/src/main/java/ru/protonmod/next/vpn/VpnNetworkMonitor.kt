@@ -141,6 +141,14 @@ class VpnNetworkMonitor @Inject constructor(
         return networks.any(::isUsableUnderlying)
     }
 
+    /**
+     * True when Android itself validated internet access on a physical network. Android keeps
+     * probing the underlying networks outside the tunnel, so this tells "the network has no
+     * internet" apart from "only the VPN does not get through".
+     */
+    fun hasValidatedUnderlyingNetwork(): Boolean =
+        getTrackedNetworks().any { isUsableUnderlying(it) && it.systemValidated }
+
     /** Suspends until a physical network with internet access is available. */
     suspend fun awaitUsableUnderlyingNetwork() {
         snapshot.first { current ->

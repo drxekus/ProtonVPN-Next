@@ -660,11 +660,18 @@ class AmneziaVpnManager @Inject constructor(
         // is not about obfuscation and keeps it.
         val failedVariant = request.obfuscationVariant
         val networkSettling = vpnNetworkMonitor.physicalNetworkChangedWithin(LADDER_NETWORK_SETTLE_MS)
+        // Without internet on the network itself every variant fails, and counting that taught
+        // the ladder that everything but the habitual variant is blocked (0 successes each in
+        // field data, as they were only ever tried while the network was dead).
+        val networkHasInternet = vpnNetworkMonitor.hasValidatedUnderlyingNetwork()
         val nextVariant = if (failedVariant != null && reason == ProtonVpnService.FAILURE_HANDSHAKE_TIMEOUT) {
-            if (networkSettling) {
-                ProtonLogger.i(TAG, "Network changed recently; not counting the failure against ${failedVariant.id}")
+            if (networkSettling || !networkHasInternet) {
+                val why = if (networkSettling) "network changed" else "no internet on the network"
+                ProtonLogger.i(TAG, "Not counting the failure against ${failedVariant.id}: $why")
+                VpnEventLog.log("ladder: ${failedVariant.id} failure not counted ($why)")
                 failedVariant
             } else withContext(dispatcherProvider.io()) {
+                VpnEventLog.log("ladder: ${failedVariant.id} failed on a network with internet")
                 obfuscationAdvisor.nextAfterFailure(failedVariant, ladderFavorite(request), failover.triedVariants)
             }
         } else failedVariant
@@ -687,7 +694,9 @@ class AmneziaVpnManager @Inject constructor(
                 ?.let(connectedServerState::setConnectedServer)
         }
         VpnEventLog.log(
-            "app: failover ($reason) to " + if (next.logicalServerId == request.logicalServerId) "the same server" else "another server"
+            "app: failover ($reason) to " +
+                (if (next.logicalServerId == request.logicalServerId) "the same server" else "another server") +
+                (next.obfuscationVariant?.let { " with ${it.id}" } ?: "")
         )
         currentServerId = next.logicalServerId
         connectionJob?.cancel()

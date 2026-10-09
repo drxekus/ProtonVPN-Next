@@ -815,7 +815,9 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
     /** The engine runs but the server does not answer: restart it through the recovery path. */
     private fun onTunnelUnresponsive(reason: String) {
         if (manualDisconnect || connecting || state != VpnTunnelState.UP) return
-        VpnEventLog.log("tunnel unresponsive ($reason)")
+        VpnEventLog.log(
+            "tunnel unresponsive ($reason, network internet=${vpnNetworkMonitor.hasValidatedUnderlyingNetwork()})"
+        )
         if (!autoReconnectEnabled) {
             ProtonLogger.w(TAG, "Tunnel does not carry traffic ($reason); auto-reconnect is off")
             if (verified) {

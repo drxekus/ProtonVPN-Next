@@ -48,7 +48,18 @@ import javax.inject.Singleton
 class ObfuscationAdvisor @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
-    private val prefs by lazy { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
+    private val prefs by lazy {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).also { prefs ->
+            // Results recorded before STATS_VERSION 2 counted failures on networks without
+            // internet, so every variant but the habitual one looked blocked. Start over once;
+            // the install seed is kept.
+            if (prefs.getInt(KEY_STATS_VERSION, 1) < STATS_VERSION) {
+                val editor = prefs.edit()
+                prefs.all.keys.filter { it.startsWith(PREFIX) }.forEach { editor.remove(it) }
+                editor.putInt(KEY_STATS_VERSION, STATS_VERSION).apply()
+            }
+        }
+    }
     private val lock = Any()
 
     /** Per-install seed for the variants' packet sizes; drawn once. */
@@ -193,6 +204,8 @@ class ObfuscationAdvisor @Inject constructor(
         const val TAG = "ObfuscationAdvisor"
         const val PREFS_NAME = "obfuscation_ladder"
         const val KEY_SEED = "install_seed"
+        const val KEY_STATS_VERSION = "stats_version"
+        const val STATS_VERSION = 2
         const val PREFIX = "net:"
         const val MAX_NETWORKS = 16
         const val RETRY_LIGHTER_AFTER_MS = 7L * 24 * 60 * 60 * 1000

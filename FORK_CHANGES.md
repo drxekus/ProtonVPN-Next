@@ -41,7 +41,7 @@
 - **Учится на своей сети.** Результаты хранятся отдельно для каждой сети (код оператора или хэш шлюза Wi-Fi, только на телефоне) и забываются с периодом полураспада 14 дней. Новое подключение берёт то, что сработало в этой сети последним; после неудачи следующий вариант выбирается сэмплированием Томпсона. Раз в неделю приложение снова пробует вариант пользователя — вдруг блокировку сняли.
 - **Разные установки выглядят по-разному.** Размеры мусора и записанный QUIC-образец выбираются один раз для каждой установки: раньше все копии приложения слали побайтно одинаковый I1.
 - Автоподбор работает с режимом «Без дополнительной защиты» и стандартным профилем AWG и выключается в настройках обфускации; свой профиль и цепочку прокси не трогает.
-- **Обрывы связи не портят статистику.** Неудачи в первую минуту после смены сети (лифт, переход на 3G) не засчитываются методу обфускации: в такие моменты не проходит никакой вариант.
+- **Обрывы связи не портят статистику.** Неудача засчитывается методу обфускации, только если Android видит интернет на самой сети (он проверяет это вне VPN), и не в первую минуту после смены сети. Раньше неудачи на мёртвой сети учились как блокировка: все варианты, кроме привычного, набрали по 80+ неудач и ни одного успеха, потому что их пробовали только при мёртвой сети. Накопленная так статистика сбрасывается один раз. В журнале событий теперь видно, был ли у сети интернет при каждой неудаче.
 - Скилл Claude Code `tune-obfuscation` снимает с телефона журнал и статистику лестницы и помогает подобрать варианты для следующих версий.
 
 ## Приватность и безопасность
@@ -110,7 +110,7 @@ A fork of ProtonVPN-Next at commit `e4b08fa`. Tested on a real phone; 193 unit t
 - Automatic obfuscation ladder: after a handshake gets no answer, the next attempt also changes the obfuscation (none → standard → medium junk → strong junk → "live QUIC" I1 with a random connection ID and payload per handshake). All variants keep the handshake Proton-compatible (S1–S4 = 0, H1–H4 = 1–4).
 - It learns per network (operator code or Wi-Fi hash, on the device only) by Thompson sampling over results with a 14-day half-life, reuses what last worked, and retries the user's own setting weekly.
 - Junk sizes and the recorded QUIC sample are drawn per install, so installs no longer send identical I1 packets.
-- Failures in the first minute after a network change (a lift, a fall back to 3G) are not held against the obfuscation variant: nothing gets through at such moments.
+- A failure counts against an obfuscation variant only when Android validated internet on the network itself (probed outside the VPN) and not in the first minute after a network change. Failures on dead networks used to teach the ladder that every variant but the habitual one was blocked (80+ failures, no success each, as they were only tried while the network was dead); those statistics are reset once. The event log notes whether the network had internet at each failure.
 - A Claude Code skill, `tune-obfuscation`, pulls the ladder's data over adb to tune the variants.
 
 **Privacy and security**

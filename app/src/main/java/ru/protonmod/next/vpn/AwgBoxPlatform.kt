@@ -356,7 +356,8 @@ class AwgBoxPlatform(
             listener.updateDefaultInterface("", -1, false, false)
         } else {
             ProtonLogger.i(TAG, "Default interface is now $name (index $index)")
-            VpnEventLog.log("net: default interface $name (index $index, metered=$expensive)")
+            val validated = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+            VpnEventLog.log("net: default interface $name (index $index, metered=$expensive, validated=$validated)")
         }
         listener.updateDefaultInterface(name, index, expensive, false)
         val pathChanged = previous == null || previous.name != name || previous.index != index ||
