@@ -217,7 +217,10 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
         private const val NOTIFICATION_REFRESH_MS = 5_000L
         /** How often the watchdog alarm checks that the tunnel's process is still alive. */
         private const val WATCHDOG_INTERVAL_MS = 60_000L
+        /** The waking fallback; covers a process killed while the phone sleeps. */
+        private const val WATCHDOG_WAKEUP_INTERVAL_MS = 15 * 60_000L
         private const val WATCHDOG_REQUEST_CODE = 7
+        private const val WATCHDOG_WAKEUP_REQUEST_CODE = 8
         private const val APP_REQUEST_THROTTLE_MS = 30_000L
         private val APP_CONFIG_WAIT = 60.seconds
         /** A restored snapshot may carry an expired certificate; ask the app for a fresh one then. */
@@ -435,6 +438,10 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
      * sticky service. While a tunnel should be up, an alarm is kept armed: if it fires and finds
      * no tunnel (a fresh process), it restores the last one from the saved snapshot; otherwise
      * it just arms itself again. A user disconnect disarms it.
+     *
+     * The one-minute check does not wake the phone: swipes happen with the screen on, and a
+     * waking alarm every minute was the phone's most frequent wakeup (485 in 19 h). A waking
+     * fallback, pushed back on every check, only fires after 15 minutes of deep sleep.
      */
     private fun onWatchdog() {
         if (connecting || state == VpnTunnelState.UP) {
@@ -445,30 +452,32 @@ class ProtonVpnService : VpnService(), CommandServerHandler {
         handleSystemStart(alwaysOn = false)
     }
 
-    private fun watchdogIntent(): PendingIntent = PendingIntent.getForegroundService(
+    private fun watchdogIntent(requestCode: Int): PendingIntent = PendingIntent.getForegroundService(
         this,
-        WATCHDOG_REQUEST_CODE,
+        requestCode,
         Intent(this, ProtonVpnService::class.java).setAction(ACTION_WATCHDOG),
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
     )
 
     private fun armWatchdog() {
         val alarms = getSystemService(ALARM_SERVICE) as? AlarmManager ?: return
-        val at = SystemClock.elapsedRealtime() + WATCHDOG_INTERVAL_MS
+        val now = SystemClock.elapsedRealtime()
         runCatching {
-            // An inexact alarm may run a minute late; use an exact one where it is allowed.
-            val exact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarms.canScheduleExactAlarms()
-            if (exact) {
-                alarms.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, at, watchdogIntent())
-            } else {
-                alarms.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, at, watchdogIntent())
-            }
+            alarms.set(AlarmManager.ELAPSED_REALTIME, now + WATCHDOG_INTERVAL_MS, watchdogIntent(WATCHDOG_REQUEST_CODE))
+            alarms.setAndAllowWhileIdle(
+                AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                now + WATCHDOG_WAKEUP_INTERVAL_MS,
+                watchdogIntent(WATCHDOG_WAKEUP_REQUEST_CODE)
+            )
         }.onFailure { ProtonLogger.w(TAG, "Could not arm the watchdog: ${it.message}") }
     }
 
     private fun disarmWatchdog() {
         val alarms = getSystemService(ALARM_SERVICE) as? AlarmManager ?: return
-        runCatching { alarms.cancel(watchdogIntent()) }
+        runCatching {
+            alarms.cancel(watchdogIntent(WATCHDOG_REQUEST_CODE))
+            alarms.cancel(watchdogIntent(WATCHDOG_WAKEUP_REQUEST_CODE))
+        }
     }
 
     private fun handleSystemStart(alwaysOn: Boolean) {
