@@ -138,7 +138,7 @@ class AuthRepositoryTest {
         val vpnKeyPair = VpnKeyPair("pubkey", "privkey")
         whenever(cryptoWrapper.generateVpnKeyPair()).thenReturn(vpnKeyPair)
 
-        whenever(vpnRepository.registerWireGuardKey(any(), any(), anyOrNull())).thenReturn(
+        whenever(vpnRepository.registerWireGuardKey(any(), any(), anyOrNull(), anyOrNull())).thenReturn(
             Result.success(Pair(CreateCertificateResponse(code = 1000, certificate = "cert"), vpnKeyPair))
         )
         
@@ -153,6 +153,46 @@ class AuthRepositoryTest {
         assertTrue("Expected success but got ${result.exceptionOrNull()}", result.isSuccess)
         assertEquals("final_token", result.getOrNull()?.accessToken)
         verify(authApi).performLogin(any(), eq("anon_session_id"), any(), anyOrNull(), anyOrNull())
+    }
+
+    @Test
+    fun `a captcha on the certificate is solved for the logged-in session without logging in again`() = runTest(testDispatcher) {
+        whenever(authApi.createAnonymousSession(any(), anyOrNull(), anyOrNull())).thenReturn(
+            LoginResponse(code = 1000, accessToken = "anon_token", sessionId = "anon_session_id")
+        )
+        whenever(authApi.getAuthInfo(any(), any(), any(), anyOrNull(), anyOrNull())).thenReturn(
+            AuthInfoResponse(code = 1000, salt = "salt", modulus = "modulus", serverEphemeral = "serverEphemeral", srpSession = "srpSession")
+        )
+        whenever(cryptoWrapper.generateSrpProofs(any(), any(), any(), any(), any())).thenReturn(SrpProofs("ce", "cp"))
+        whenever(authApi.performLogin(any(), any(), any(), anyOrNull(), anyOrNull())).thenReturn(
+            LoginResponse(
+                code = 1000, accessToken = "final_token", refreshToken = "final_refresh",
+                sessionId = "final_session_id", userId = "user_id", scopes = listOf("vpn")
+            )
+        )
+        val vpnKeyPair = VpnKeyPair("pubkey", "privkey")
+        // Proton asks for human verification on the certificate of the new session.
+        whenever(vpnRepository.registerWireGuardKey(any(), any(), anyOrNull(), isNull())).thenReturn(
+            Result.failure(ru.protonmod.next.ui.screens.CaptchaRequiredException("https://verify", "hv", "final_session_id"))
+        )
+        whenever(vpnRepository.registerWireGuardKey(any(), any(), anyOrNull(), eq("solved"))).thenReturn(
+            Result.success(Pair(CreateCertificateResponse(code = 1000, certificate = "cert"), vpnKeyPair))
+        )
+        whenever(vpnRepository.getVpnInfo(any(), any())).thenReturn(
+            Result.success(VpnInfoResponse(code = 1000, vpnInfo = VpnInfo(maxTier = 2)))
+        )
+
+        val first = repository.login("testuser", "password")
+        val captcha = first.exceptionOrNull()
+        assertTrue("Expected a captcha but got $captcha", captcha is ru.protonmod.next.ui.screens.CaptchaRequiredException)
+        assertEquals("final_session_id", (captcha as ru.protonmod.next.ui.screens.CaptchaRequiredException).sessionId)
+
+        val second = repository.login("testuser", "password", captchaToken = "solved")
+
+        assertTrue("Expected success but got ${second.exceptionOrNull()}", second.isSuccess)
+        assertEquals("final_token", second.getOrNull()?.accessToken)
+        verify(authApi, times(1)).performLogin(any(), any(), any(), anyOrNull(), anyOrNull())
+        verify(vpnRepository).registerWireGuardKey(eq("final_token"), eq("final_session_id"), anyOrNull(), eq("solved"))
     }
 
     @Test
@@ -174,7 +214,7 @@ class AuthRepositoryTest {
         val vpnKeyPair = VpnKeyPair("pubkey", "privkey")
         whenever(cryptoWrapper.generateVpnKeyPair()).thenReturn(vpnKeyPair)
 
-        whenever(vpnRepository.registerWireGuardKey(any(), any(), anyOrNull())).thenReturn(
+        whenever(vpnRepository.registerWireGuardKey(any(), any(), anyOrNull(), anyOrNull())).thenReturn(
             Result.success(Pair(CreateCertificateResponse(code = 1000, certificate = "cert"), vpnKeyPair))
         )
 
@@ -249,7 +289,7 @@ class AuthRepositoryTest {
         
         val vpnKeyPair = VpnKeyPair("pub", "priv")
         whenever(cryptoWrapper.generateVpnKeyPair()).thenReturn(vpnKeyPair)
-        whenever(vpnRepository.registerWireGuardKey(any(), any(), anyOrNull())).thenReturn(
+        whenever(vpnRepository.registerWireGuardKey(any(), any(), anyOrNull(), anyOrNull())).thenReturn(
             Result.success(Pair(CreateCertificateResponse(code = 1000, certificate = "cert"), vpnKeyPair))
         )
         whenever(vpnRepository.getVpnInfo(any(), any())).thenReturn(

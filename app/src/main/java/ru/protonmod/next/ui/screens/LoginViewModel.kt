@@ -49,6 +49,7 @@ import javax.inject.Inject
 @Serializable
 data class ProtonErrorResponse(
     @SerialName("Code") val code: Int,
+    @SerialName("Error") val error: String? = null,
     @SerialName("Details") val details: ProtonErrorDetails? = null
 )
 

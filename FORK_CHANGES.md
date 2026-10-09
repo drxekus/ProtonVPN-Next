@@ -1,6 +1,6 @@
 # Чем этот форк отличается от оригинала
 
-Форк проекта ProtonVPN-Next (база — коммит `e4b08fa`, версия `12.0.0-alpha2st3-38`). Все изменения проверены на реальном телефоне и покрыты юнит-тестами (193 теста проходят).
+Форк проекта ProtonVPN-Next (база — коммит `e4b08fa`, версия `12.0.0-alpha2st3-38`). Все изменения проверены на реальном телефоне и покрыты юнит-тестами (194 теста проходят).
 
 [English version below](#english)
 
@@ -32,6 +32,7 @@
 - **Перебор серверов не ходит по кругу.** Когда VPN-процесс будил приложение, перебор начинался заново, и одни и те же порты одного сервера пробовались часами. Теперь перебор продолжается с места остановки (и начинается заново только через 5 минут, когда условия могли измениться), а выбранный вручную сервер, который совсем не отвечает, после 4 попыток меняется на лучший сервер в той же стране.
 - **«Проверка…» не зависает.** Если проверочный запрос через туннель не прошёл, а переключиться было не на что, экран навсегда оставался в «Проверке…», хотя трафик шёл. Теперь проверка повторяется каждые 15 секунд, пока не пройдёт.
 - **Капча при входе открывается и с включённым VPN.** При включённом «Обходе блокировки API» и любом активном VPN на телефоне страница проверки «я не робот» уходила на адрес API и показывала `404 Path not found` вместо капчи. Теперь при прямом подключении адрес меняется только у запросов к самому API.
+- **Капча на шаге ключа VPN.** На новом устройстве Proton может попросить проверку «я не робот» уже после входа, при выдаче ключа WireGuard. Раньше это заканчивалось ошибкой «WireGuard key registration failed: HTTP 422»; теперь показывается капча, и после неё вход завершается без повторной авторизации. Другие отказы Proton показываются с его кодом и текстом, а не голым «HTTP 422».
 - **Смена сети (вышки).** Движку сообщается только основная физическая сеть, как в официальном клиенте sing-box. Смена сети или IPv4-адреса на том же интерфейсе (`ccmni0` → новый адрес) теперь тоже считается сменой. Патч к amnezia-box (`scripts/patches/awgbox-awg-rebind.patch`): AWG-туннель при смене сети сразу пересоздаёт UDP-сокет и отправляет keepalive — в апстриме это делал только обычный WireGuard, поэтому соединение «висело», пока не сработают таймеры.
 - **Меньше фоновой нагрузки:** уведомление обновляется раз в 5 секунд, а не каждую секунду (прошивки считали это активностью в фоне).
 - **Мелочи:** повторное нажатие на сервер при неработающем туннеле больше не игнорируется; состояние «Подключение…» после ошибки сбрасывается; «Connect & Go» ждёт проверенного туннеля; прокси ByeDPI для обхода блокировки API запускается при старте приложения (раньше — только после открытия настроек); профили передают все параметры обфускации (S3/S4, I2–I5).
@@ -88,7 +89,7 @@
 <a name="english"></a>
 # How this fork differs from the original
 
-A fork of ProtonVPN-Next at commit `e4b08fa`. Tested on a real phone; 193 unit tests pass.
+A fork of ProtonVPN-Next at commit `e4b08fa`. Tested on a real phone; 194 unit tests pass.
 
 **Connection stability**
 - "Fastest" only picks servers that are online and have a WireGuard key. Servers under maintenance kept a load of 0 and used to win. One shared `ServerSelector` replaces ten copies of that logic.
@@ -106,6 +107,7 @@ A fork of ProtonVPN-Next at commit `e4b08fa`. Tested on a real phone; 193 unit t
 - Failover no longer starts over each time the VPN process wakes the app (it retried the same ports for hours); an exact server that does not answer is replaced by the best one in its country after 4 attempts.
 - "Verifying…" no longer sticks: when the probe through the tunnel failed and failover had nothing to switch to, the screen stayed there for good while traffic flowed. The probe now repeats every 15 s until it passes.
 - The human verification (captcha) page at login opens again with the API bypass on while a VPN is active: going direct, the client used to send every Proton host, verify.proton.me included, to the API host, which answered 404 "Path not found". Only API and proxy hosts are rewritten now.
+- A captcha asked for on the VPN certificate right after login (a new device) is shown for the logged-in session, and solving it finishes the login without authenticating again; it used to end with "WireGuard key registration failed: HTTP 422". Other refusals show Proton's own code and text instead of a bare "HTTP 422".
 - The notification refreshes every 5 s instead of every second.
 
 **Censorship circumvention**

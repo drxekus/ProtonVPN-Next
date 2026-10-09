@@ -539,13 +539,18 @@ open class VpnRepository @Inject constructor(
     suspend fun registerWireGuardKey(
         accessToken: String,
         sessionId: String,
-        mode: String? = null
+        mode: String? = null,
+        captchaToken: String? = null
     ): Result<Pair<CreateCertificateResponse, VpnKeyPair>> = withContext(dispatcherProvider.io()) {
         try {
             val keyPair = cryptoWrapper.generateVpnKeyPair()
             val bearer = "Bearer $accessToken"
             val request = CreateCertificateRequest(clientPublicKey = keyPair.publicKeyPem, mode = mode)
-            val response = vpnApi.registerVpnKey(bearer, sessionId, request)
+            val response = vpnApi.registerVpnKey(
+                bearer, sessionId, request,
+                humanVerificationToken = captchaToken,
+                humanVerificationTokenType = captchaToken?.let { "captcha" }
+            )
 
             ProtonLogger.d(TAG, "registerWireGuardKey response code: ${response.code}, cert length: ${response.certificate?.length ?: 0}")
             if (response.code == 1000) {
@@ -576,10 +581,40 @@ open class VpnRepository @Inject constructor(
             // Re-throw cancellation exceptions to allow proper coroutine cancellation propagation
             // when user navigates away during certificate registration.
             throw e
+        } catch (e: retrofit2.HttpException) {
+            Result.failure(certificateError(e, sessionId))
         } catch (e: Exception) {
             ProtonLogger.e(TAG, "Error in registerWireGuardKey", e)
             Result.failure(e)
         }
+    }
+
+    /**
+     * Proton puts the reason for a refused certificate in the body, not in the HTTP status: a
+     * bare "HTTP 422" hid it. 9001 asks for human verification (a captcha) on this session,
+     * which a new device can get right after logging in; anything else keeps Proton's own text.
+     */
+    private fun certificateError(e: retrofit2.HttpException, sessionId: String): Exception {
+        val body = runCatching { e.response()?.errorBody()?.string() }.getOrNull()
+        val parsed = body?.let {
+            runCatching {
+                kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+                    .decodeFromString<ru.protonmod.next.ui.screens.ProtonErrorResponse>(it)
+            }.getOrNull()
+        }
+        ProtonLogger.w(TAG, "Certificate refused: HTTP ${e.code()}, Proton code ${parsed?.code}, ${parsed?.error}")
+        if (parsed?.code == 9001) {
+            return ru.protonmod.next.ui.screens.CaptchaRequiredException(
+                webUrl = parsed.details?.webUrl ?: "",
+                token = parsed.details?.humanVerificationToken ?: "",
+                sessionId = sessionId
+            )
+        }
+        val reason = parsed?.error?.takeIf { it.isNotBlank() }
+        return ProtonApiException(
+            e.code(),
+            if (reason != null) "HTTP ${e.code()} (Proton ${parsed.code}): $reason" else "HTTP ${e.code()}"
+        )
     }
 
     /**

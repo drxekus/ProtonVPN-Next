@@ -109,6 +109,8 @@ interface ProtonVpnApi {
     suspend fun registerVpnKey(
         @Header("Authorization") authorization: String,
         @Header("x-pm-uid") sessionId: String,
-        @Body request: CreateCertificateRequest
+        @Body request: CreateCertificateRequest,
+        @Header("x-pm-human-verification-token") humanVerificationToken: String? = null,
+        @Header("x-pm-human-verification-token-type") humanVerificationTokenType: String? = null
     ): CreateCertificateResponse
 }

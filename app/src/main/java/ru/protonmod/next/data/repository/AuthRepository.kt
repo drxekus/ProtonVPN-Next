@@ -84,6 +84,22 @@ class AuthRepository @Inject constructor(
     @Volatile
     private var pendingChallengePayload: JsonObject? = null
 
+    /**
+     * A login that passed authentication but whose VPN certificate request asked for human
+     * verification. The captcha is solved for this session, and the next login call with the
+     * token only finishes the certificate step instead of logging in again.
+     */
+    private data class PendingCertificate(
+        val accessToken: String,
+        val refreshToken: String,
+        val sessionId: String,
+        val userId: String,
+        val response: LoginResponse,
+    )
+
+    @Volatile
+    private var pendingCertificate: PendingCertificate? = null
+
     private val authMutex = Mutex()
 
     /**
@@ -112,6 +128,7 @@ class AuthRepository @Inject constructor(
         pendingAuthInfo = null
         pendingUsername = null
         pendingChallengePayload = null
+        pendingCertificate = null
     }
 
     fun getPendingUid(): String? = pendingAnonUid
@@ -169,6 +186,12 @@ class AuthRepository @Inject constructor(
     suspend fun login(username: String, passwordRaw: String, captchaToken: String? = null): Result<LoginResponse> = authMutex.withLock {
         withContext(dispatcherProvider.io() + authJob) {
             try {
+                val waitingCertificate = pendingCertificate
+                if (waitingCertificate != null && captchaToken != null) {
+                    ProtonLogger.i(TAG, "[Login] Captcha solved for the certificate; finishing the login")
+                    pendingCertificate = null
+                    return@withContext finishLogin(waitingCertificate, captchaToken)
+                }
                 ProtonLogger.i(TAG, "Starting Kotlin SRP login flow (Have Captcha: ${captchaToken != null})")
                 
                 val challengePayload = pendingChallengePayload ?: buildChallengePayload().also { pendingChallengePayload = it }
@@ -227,26 +250,14 @@ class AuthRepository @Inject constructor(
                 // If 2FA is not required, proceed to complete setup
                 if (!response.scopes.contains("twofactor")) {
                     ProtonLogger.d(TAG, "[Login] Completing authentication. Registering VPN cert...")
-                    val keys = registerAndGetVpnKeys(finalAccessToken, finalUid)
-
-                    val vpnInfoResult = vpnRepository.getVpnInfo(finalAccessToken, finalUid)
-                    val userTier = vpnInfoResult.getOrNull()?.vpnInfo?.maxTier ?: 0
-
-                    saveSessionLocally(
+                    val pending = PendingCertificate(
                         accessToken = finalAccessToken,
                         refreshToken = finalRefreshToken,
                         sessionId = finalUid,
                         userId = response.userId ?: "",
-                        userTier = userTier,
-                        wgPrivateKey = keys.first.privateKeyX25519,
-                        wgPublicKeyPem = keys.first.publicKeyPem,
-                        wgCertificate = keys.third,
-                        vpnIpv4 = keys.second.ipv4,
-                        vpnIpv6 = keys.second.ipv6,
-                        vpnDns = keys.second.dns?.joinToString(",")
+                        response = response,
                     )
-
-                    vpnRepository.getServers(finalAccessToken, finalUid, userTier)
+                    return@withContext finishLogin(pending, captchaToken = null)
                 }
 
                 ProtonLogger.d(TAG, "[Login] Success. Scopes: ${response.scopes.joinToString()}")
@@ -493,9 +504,53 @@ class AuthRepository @Inject constructor(
         }
     }
 
-    private suspend fun registerAndGetVpnKeys(accessToken: String, sessionId: String): Triple<VpnKeyPair, CreateCertificateResponse, String> {
+    /**
+     * Last step of a login: VPN certificate, plan, local session, server list. When Proton asks
+     * for a captcha on the certificate, the authenticated session is kept and the captcha is
+     * shown for it; [login] with the solved token resumes here.
+     */
+    private suspend fun finishLogin(pending: PendingCertificate, captchaToken: String?): Result<LoginResponse> {
+        val keys = try {
+            registerAndGetVpnKeys(pending.accessToken, pending.sessionId, captchaToken)
+        } catch (e: CaptchaRequiredException) {
+            ProtonLogger.w(TAG, "[Login] The VPN certificate needs a captcha for this session")
+            pendingCertificate = pending
+            return Result.failure(e)
+        }
+        val vpnInfoResult = vpnRepository.getVpnInfo(pending.accessToken, pending.sessionId)
+        val userTier = vpnInfoResult.getOrNull()?.vpnInfo?.maxTier ?: 0
+
+        saveSessionLocally(
+            accessToken = pending.accessToken,
+            refreshToken = pending.refreshToken,
+            sessionId = pending.sessionId,
+            userId = pending.userId,
+            userTier = userTier,
+            wgPrivateKey = keys.first.privateKeyX25519,
+            wgPublicKeyPem = keys.first.publicKeyPem,
+            wgCertificate = keys.third,
+            vpnIpv4 = keys.second.ipv4,
+            vpnIpv6 = keys.second.ipv6,
+            vpnDns = keys.second.dns?.joinToString(",")
+        )
+        vpnRepository.getServers(pending.accessToken, pending.sessionId, userTier)
+        clearPendingAuth()
+
+        ProtonLogger.d(TAG, "[Login] Success. Scopes: ${pending.response.scopes.joinToString()}")
+        return Result.success(pending.response.copy(
+            accessToken = pending.accessToken,
+            refreshToken = pending.refreshToken,
+            sessionId = pending.sessionId
+        ))
+    }
+
+    private suspend fun registerAndGetVpnKeys(
+        accessToken: String,
+        sessionId: String,
+        captchaToken: String? = null
+    ): Triple<VpnKeyPair, CreateCertificateResponse, String> {
         try {
-            val regResult = vpnRepository.registerWireGuardKey(accessToken, sessionId)
+            val regResult = vpnRepository.registerWireGuardKey(accessToken, sessionId, captchaToken = captchaToken)
 
             if (regResult.isSuccess) {
                 val pair = regResult.getOrNull()!!
@@ -503,7 +558,9 @@ class AuthRepository @Inject constructor(
                 val vpnKeyPair = pair.second
                 return Triple(vpnKeyPair, response, response.certificate ?: "")
             } else {
-                throw Exception("WireGuard key registration failed: ${regResult.exceptionOrNull()?.message ?: "unknown error"}")
+                val error = regResult.exceptionOrNull()
+                if (error is CaptchaRequiredException) throw error
+                throw Exception("WireGuard key registration failed: ${error?.message ?: "unknown error"}")
             }
         } catch (e: CancellationException) {
             throw e
